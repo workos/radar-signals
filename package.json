@@ -1,0 +1,64 @@
+{
+  "name": "@workos/radar-signals",
+  "version": "0.0.0",
+  "description": "Browser signals collector for WorkOS Radar",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/workos/radar-signals.git"
+  },
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./react": {
+      "import": {
+        "types": "./dist/react.d.ts",
+        "default": "./dist/react.mjs"
+      },
+      "require": {
+        "types": "./dist/react.d.cts",
+        "default": "./dist/react.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "ulidx": "^2.4.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.4",
+    "react": "^19.1.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  }
+}
