@@ -1,2 +1,6 @@
-export { useRadarSignals } from "./use-radar-signals";
-export type { RadarSignals, RadarSignalsOptions } from "./types";
+export {
+  RadarSignalsProvider,
+  useRadarToken,
+  useRadarSignals,
+} from "./react/index";
+export type { RadarInitOptions } from "./types";
