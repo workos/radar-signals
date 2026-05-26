@@ -1,2 +1,10 @@
-export { collectSignals } from "./collect-signals";
-export type { RadarSignals, RadarSignalsOptions } from "./types";
+export { collectSignals } from './collector';
+export type { CollectSignalsOptions } from './collector';
+export type {
+  Signals,
+  SignalsWorker,
+  Screen,
+  MinimalSurface,
+  MediaPreferences,
+  RadarInitOptions,
+} from './types';
