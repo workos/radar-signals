@@ -61,7 +61,7 @@ export async function collectNavigatorSignals(): Promise<NavigatorSignals> {
       'Notification' in window ? Notification.permission : undefined,
     devicePixelRatio: window.devicePixelRatio,
     pluginsLength: navigator.plugins.length,
-    mimeTypesCount: Object.keys(navigator.mimeTypes).length,
+    mimeTypesCount: navigator.mimeTypes.length,
     documentHidden: document.hidden,
     documentVisibilityState: document.visibilityState,
   };

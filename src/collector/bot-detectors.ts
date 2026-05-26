@@ -61,8 +61,8 @@ export function collectBotSignals(): BotSignals {
   // The length of the eval string can vary based on the browser.
   const evalStringLength = (() => {
     try {
-      // eslint-disable-next-line no-eval -- intentional fingerprint differentiator
       const somethingElse = window;
+      // eslint-disable-next-line no-eval -- intentional fingerprint differentiator
       return somethingElse.eval.toString().length;
     } catch {
       return undefined;

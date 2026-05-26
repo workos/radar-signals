@@ -147,17 +147,21 @@ const collectCssKeys = async (): Promise<{
     const el = document.createElement('div');
     document.body.appendChild(el);
 
-    const style = window.getComputedStyle(el);
-    const keys = Array.from(style);
-
-    document.body.removeChild(el);
-
-    const { hash, count } = await hashList(keys);
-
-    return {
-      cssKeysHash: hash,
-      cssKeysCount: count,
-    };
+    try {
+      const style = window.getComputedStyle(el);
+      const keys = Array.from(style);
+      const { hash, count } = await hashList(keys);
+      return {
+        cssKeysHash: hash,
+        cssKeysCount: count,
+      };
+    } finally {
+      try {
+        document.body.removeChild(el);
+      } catch {
+        /* ignore cleanup failures */
+      }
+    }
   } catch {
     return {
       cssKeysHash: undefined,
