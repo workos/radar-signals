@@ -8,12 +8,21 @@
 
 import { ulid } from "ulidx";
 import type { RadarInitOptions, Signals } from "./types";
-import { collectAllSignals } from "./collector/index";
+import { collectSignals } from "./collector/index";
 import { installPuppeteerDetector } from "./collector/puppeteer-detector";
 import { runWebGLWorker } from "./worker/inline-worker";
 import { postSignals, beaconSignals } from "./api/client";
 
-export type { RadarInitOptions, Signals, RadarSignals, HashCount, MediaPreferences } from "./types";
+export { collectSignals } from "./collector/index";
+export type { CollectSignalsOptions } from "./collector/index";
+export type {
+  RadarInitOptions,
+  Signals,
+  SignalsWorker,
+  Screen,
+  MinimalSurface,
+  MediaPreferences,
+} from "./types";
 
 /** Current state of the Radar instance. */
 type RadarState =
@@ -116,17 +125,16 @@ export class WorkOSRadar {
     // this.resolveCompletion mid-flight, we still resolve the correct promise.
     const resolve = this.resolveCompletion;
     try {
-      // Collect signals (main thread + worker in parallel)
-      const [signals, workerResult] = await Promise.all([
-        collectAllSignals(this.puppeteerDetector.getState()),
-        runWebGLWorker(),
-      ]);
+      const detector = this.puppeteerDetector;
 
-      // Merge worker WebGL results (worker results take precedence if available)
-      if (workerResult.renderer) signals.webGLRenderer = workerResult.renderer;
-      if (workerResult.vendor) signals.webGLVendor = workerResult.vendor;
-      if (workerResult.paramsHash)
-        signals.webGLParamsHash = workerResult.paramsHash;
+      // Collect all signals, providing the worker runner and puppeteer snapshot
+      const signals = await collectSignals({
+        runWorker: () => runWebGLWorker(),
+        puppeteerSnapshot: () => ({
+          detected: detector.getState().puppeteerDetected,
+          documentNotAvailable: detector.getState().puppeteerDocumentNotAvailable,
+        }),
+      });
 
       if (this.destroyed) return;
 

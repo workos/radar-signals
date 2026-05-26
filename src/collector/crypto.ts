@@ -1,27 +1,48 @@
 /**
- * Cryptographic utilities for signal fingerprinting.
- * Uses the Web Crypto API (SubtleCrypto) available in browsers and workers.
+ * Shared crypto utilities for signal fingerprinting.
+ * All hashing uses SHA-256 with base64url encoding.
  */
 
-/** Convert an ArrayBuffer to a base64url-encoded string. */
-export function bufferToBase64Url(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]!);
+export const canonicalizeList = (values: string[]): string[] =>
+  Array.from(
+    new Set(values.filter(Boolean).map((v) => v.trim().toLowerCase())),
+  ).sort();
+
+export const bufferToBase64Url = (buffer: ArrayBuffer): string => {
+  const hashArray = Array.from(new Uint8Array(buffer));
+  const base64 = btoa(String.fromCharCode(...hashArray));
+
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+export const sha256BufferBase64Url = async (
+  buffer: BufferSource,
+): Promise<string | undefined> => {
+  try {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    return bufferToBase64Url(hashBuffer);
+  } catch {
+    return undefined;
   }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
+};
 
-/** SHA-256 hash of a string, returned as base64url. */
-export async function sha256Base64Url(data: string): Promise<string> {
+export const sha256Base64Url = async (
+  input: string,
+): Promise<string | undefined> => {
   const encoder = new TextEncoder();
-  const buffer = await crypto.subtle.digest("SHA-256", encoder.encode(data));
-  return bufferToBase64Url(buffer);
-}
+  const data = encoder.encode(input);
+  return sha256BufferBase64Url(data);
+};
 
-/** Sort a list of strings and hash the joined result. */
-export async function hashList(items: string[]): Promise<string> {
-  const sorted = [...items].sort();
-  return sha256Base64Url(sorted.join(","));
-}
+export const hashList = async (
+  values: string[],
+): Promise<{ hash: string | undefined; count: number }> => {
+  const canonical = canonicalizeList(values);
+  const joined = canonical.join('\n');
+  const hash = await sha256Base64Url(joined);
+
+  return {
+    hash,
+    count: canonical.length,
+  };
+};

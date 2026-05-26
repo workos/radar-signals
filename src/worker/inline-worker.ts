@@ -2,33 +2,24 @@
  * Inline Blob URL worker runner.
  *
  * Creates a Web Worker from a Blob URL (no external file needed),
- * runs the WebGL parameter collection, and returns the result.
+ * runs WebGL + navigator collection, and returns a SignalsWorker result.
  *
  * - CSP consideration: Requires `worker-src blob:` in CSP.
- *   If blocked, gracefully degrades (returns null values).
+ *   If blocked, gracefully degrades (returns { ok: false }).
  * - 5s timeout matches existing implementation.
  */
 
 import { WORKER_SOURCE } from "./worker-source";
-import { sha256Base64Url } from "../collector/crypto";
+import type { SignalsWorker } from "../types";
 
 const WORKER_TIMEOUT_MS = 5_000;
 
-export interface WorkerWebGLResult {
-  renderer: string | null;
-  vendor: string | null;
-  paramsHash: string | null;
-}
+const FALLBACK: SignalsWorker = { ok: false, error: "worker unavailable" };
+const TIMEOUT_FALLBACK: SignalsWorker = { ok: false, timeout: true };
 
-export async function runWebGLWorker(): Promise<WorkerWebGLResult> {
-  const fallback: WorkerWebGLResult = {
-    renderer: null,
-    vendor: null,
-    paramsHash: null,
-  };
-
+export async function runWebGLWorker(): Promise<SignalsWorker> {
   // Check for Worker support
-  if (typeof Worker === "undefined") return fallback;
+  if (typeof Worker === "undefined") return FALLBACK;
 
   let blobUrl: string | null = null;
   let worker: Worker | null = null;
@@ -38,38 +29,33 @@ export async function runWebGLWorker(): Promise<WorkerWebGLResult> {
     blobUrl = URL.createObjectURL(blob);
     worker = new Worker(blobUrl);
 
-    const result = await new Promise<WorkerWebGLResult>((resolve) => {
+    const result = await new Promise<SignalsWorker>((resolve) => {
       const timer = setTimeout(() => {
-        resolve(fallback);
+        resolve(TIMEOUT_FALLBACK);
       }, WORKER_TIMEOUT_MS);
 
-      worker!.onmessage = async (e: MessageEvent) => {
+      worker!.onmessage = (e: MessageEvent) => {
         clearTimeout(timer);
         const data = e.data;
         if (!data?.ok) {
-          resolve(fallback);
+          resolve({ ok: false, error: data?.error });
           return;
         }
 
-        let paramsHash: string | null = null;
-        if (data.paramsString) {
-          try {
-            paramsHash = await sha256Base64Url(data.paramsString);
-          } catch {
-            // Hash failed
-          }
-        }
-
         resolve({
-          renderer: data.renderer ?? null,
-          vendor: data.vendor ?? null,
-          paramsHash,
+          ok: true,
+          webGLRenderer: data.webGLRenderer,
+          webGLVendor: data.webGLVendor,
+          hardwareConcurrency: data.hardwareConcurrency,
+          platform: data.platform,
+          userAgent: data.userAgent,
+          language: data.language,
         });
       };
 
       worker!.onerror = () => {
         clearTimeout(timer);
-        resolve(fallback);
+        resolve({ ok: false, error: "worker error" });
       };
 
       // Trigger the worker
@@ -79,7 +65,7 @@ export async function runWebGLWorker(): Promise<WorkerWebGLResult> {
     return result;
   } catch {
     // CSP blocked, Worker constructor failed, etc.
-    return fallback;
+    return FALLBACK;
   } finally {
     if (worker) {
       worker.terminate();

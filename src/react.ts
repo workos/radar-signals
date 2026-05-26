@@ -3,4 +3,11 @@ export {
   useRadarToken,
   useRadarSignals,
 } from "./react/index";
-export type { RadarInitOptions } from "./types";
+export type {
+  Signals,
+  SignalsWorker,
+  Screen,
+  MinimalSurface,
+  MediaPreferences,
+  RadarInitOptions,
+} from "./types";

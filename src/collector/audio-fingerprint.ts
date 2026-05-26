@@ -1,45 +1,39 @@
 /**
- * Audio fingerprinting via OfflineAudioContext.
- * Creates an oscillator + compressor, renders a short buffer,
- * and SHA-256 hashes a slice of the resulting audio data.
+ * Audio fingerprint: renders a short oscillator + compressor pipeline
+ * via OfflineAudioContext and hashes the tail of the resulting buffer.
  */
 
-import { sha256Base64Url } from "./crypto";
+import { sha256Base64Url } from './crypto';
 
-export async function collectAudioFingerprint(): Promise<string | null> {
+export const collectAudioFingerprint = async (): Promise<
+  string | undefined
+> => {
   try {
-    const AudioCtx =
-      window.OfflineAudioContext ||
-      (window as unknown as { webkitOfflineAudioContext?: typeof OfflineAudioContext })
-        .webkitOfflineAudioContext;
+    const ctx = new OfflineAudioContext(1, 5000, 44100);
+    const oscillator = ctx.createOscillator();
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(10000, ctx.currentTime);
 
-    if (!AudioCtx) return null;
-
-    const context = new AudioCtx(1, 44100, 44100);
-
-    const oscillator = context.createOscillator();
-    oscillator.type = "triangle";
-    oscillator.frequency.setValueAtTime(10000, context.currentTime);
-
-    const compressor = context.createDynamicsCompressor();
-    compressor.threshold.setValueAtTime(-50, context.currentTime);
-    compressor.knee.setValueAtTime(40, context.currentTime);
-    compressor.ratio.setValueAtTime(12, context.currentTime);
-    compressor.attack.setValueAtTime(0, context.currentTime);
-    compressor.release.setValueAtTime(0.25, context.currentTime);
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-50, ctx.currentTime);
+    compressor.knee.setValueAtTime(40, ctx.currentTime);
+    compressor.ratio.setValueAtTime(12, ctx.currentTime);
+    compressor.attack.setValueAtTime(0, ctx.currentTime);
+    compressor.release.setValueAtTime(0.25, ctx.currentTime);
 
     oscillator.connect(compressor);
-    compressor.connect(context.destination);
+    compressor.connect(ctx.destination);
     oscillator.start(0);
 
-    const buffer = await context.startRendering();
-    const channelData = buffer.getChannelData(0);
+    const buffer = await ctx.startRendering();
+    const data = buffer.getChannelData(0);
+    let sum = 0;
+    for (let i = 4500; i < 5000; i++) {
+      sum += Math.abs(data[i] ?? 0);
+    }
 
-    // Hash a representative slice of the audio data
-    const slice = channelData.slice(4500, 5000);
-    const values = Array.from(slice).map((v) => v.toString()).join(",");
-    return sha256Base64Url(values);
+    return await sha256Base64Url(sum.toString());
   } catch {
-    return null;
+    return undefined;
   }
-}
+};

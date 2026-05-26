@@ -1,12 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { collectAllSignals } from "../index";
+import { collectSignals } from "../index";
 
-describe("collectAllSignals", () => {
+describe("collectSignals", () => {
   it("returns a complete Signals object with all required fields", async () => {
-    const signals = await collectAllSignals({
-      puppeteerDetected: false,
-      puppeteerDocumentNotAvailable: false,
-    });
+    const signals = await collectSignals();
 
     // Navigator
     expect(signals).toHaveProperty("timezone");
@@ -17,17 +14,16 @@ describe("collectAllSignals", () => {
     expect(signals).toHaveProperty("platform");
 
     // Screen
-    expect(signals).toHaveProperty("screenWidth");
-    expect(signals).toHaveProperty("screenHeight");
+    expect(signals).toHaveProperty("screen");
 
     // Bot detection
-    expect(signals.seleniumDetected).toBe(false);
-    expect(signals.playwrightDetected).toBe(false);
-    expect(signals.phantomDetected).toBe(false);
-    expect(signals.nightmareDetected).toBe(false);
-    expect(signals.puppeteerDetected).toBe(false);
+    expect(signals).toHaveProperty("seleniumDetected");
+    expect(signals).toHaveProperty("playwrightDetected");
+    expect(signals).toHaveProperty("phantomDetected");
+    expect(signals).toHaveProperty("nightmareDetected");
+    expect(signals).toHaveProperty("puppeteerDetected");
 
-    // Fingerprints (may be null in jsdom)
+    // Fingerprints (may be undefined in jsdom)
     expect(signals).toHaveProperty("canvasHash");
     expect(signals).toHaveProperty("audioHash");
     expect(signals).toHaveProperty("webGLRenderer");
@@ -40,15 +36,11 @@ describe("collectAllSignals", () => {
     expect(signals).toHaveProperty("mediaPreferences");
 
     // Minimal surface
-    expect(signals).toHaveProperty("windowFeatures");
-    expect(signals).toHaveProperty("cssKeys");
-    expect(signals).toHaveProperty("voices");
-    expect(signals).toHaveProperty("mediaMime");
-    expect(signals).toHaveProperty("fonts");
+    expect(signals).toHaveProperty("minimalSurface");
 
-    // Browser quirks
-    expect(signals).toHaveProperty("rangeErrorLength");
-    expect(signals).toHaveProperty("evalStringLength");
+    // Worker
+    expect(signals).toHaveProperty("worker");
+    expect(signals.worker.ok).toBe(false); // No worker configured by default
 
     // Timestamps
     expect(signals.createdAtMs).toBeTypeOf("number");

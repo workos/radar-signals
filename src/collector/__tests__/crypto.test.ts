@@ -23,7 +23,7 @@ describe("crypto", () => {
       const b = await sha256Base64Url("hello");
       expect(a).toBe(b);
       expect(a).toBeTypeOf("string");
-      expect(a.length).toBeGreaterThan(0);
+      expect(a!.length).toBeGreaterThan(0);
     });
 
     it("produces different hashes for different inputs", async () => {
@@ -37,14 +37,18 @@ describe("crypto", () => {
     it("hashes a list of strings deterministically", async () => {
       const a = await hashList(["b", "a", "c"]);
       const b = await hashList(["a", "c", "b"]);
-      // Should be the same regardless of input order (sorted internally)
-      expect(a).toBe(b);
+      expect(a.hash).toBe(b.hash);
     });
 
     it("produces different hashes for different lists", async () => {
       const a = await hashList(["a", "b"]);
       const b = await hashList(["a", "b", "c"]);
-      expect(a).not.toBe(b);
+      expect(a.hash).not.toBe(b.hash);
+    });
+
+    it("returns count of canonical items", async () => {
+      const result = await hashList(["a", "b", "c"]);
+      expect(result.count).toBe(3);
     });
   });
 });

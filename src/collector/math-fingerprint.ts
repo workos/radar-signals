@@ -1,37 +1,30 @@
 /**
- * Math function fingerprinting.
- * Different JS engines return slightly different values for trig/log functions.
+ * Math fingerprint: hashes the results of transcendental math functions
+ * that vary subtly between JS engines and hardware.
  */
 
-import { sha256Base64Url } from "./crypto";
+import { sha256Base64Url } from './crypto';
 
-export async function collectMathFingerprint(): Promise<string | null> {
+export const collectMathFingerprint = async (): Promise<
+  string | undefined
+> => {
   try {
     const values = [
-      Math.acos(0.5),
-      Math.acosh(2),
-      Math.asin(0.5),
-      Math.asinh(1),
-      Math.atan(1),
+      Math.acos(0.123456789),
+      Math.acosh(1e308),
+      Math.asin(0.123456789),
       Math.atanh(0.5),
-      Math.atan2(1, 2),
-      Math.cbrt(2),
-      Math.cos(1),
-      Math.cosh(1),
-      Math.exp(1),
+      Math.cbrt(Math.PI),
+      Math.cbrt(13),
+      Math.cosh(21),
       Math.expm1(1),
-      Math.log(2),
-      Math.log1p(1),
-      Math.log2(Math.E),
-      Math.log10(2),
-      Math.sin(1),
+      Math.log1p(10),
+      Math.log1p(0.5),
       Math.sinh(1),
-      Math.sqrt(2),
-      Math.tan(1),
-      Math.tanh(1),
+      Math.tan(-1e300),
     ];
-    return sha256Base64Url(values.map(String).join(","));
+    return await sha256Base64Url(values.join(','));
   } catch {
-    return null;
+    return undefined;
   }
-}
+};

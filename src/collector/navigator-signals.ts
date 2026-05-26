@@ -1,127 +1,68 @@
 /**
- * Collect navigator, screen, device, and permission signals.
+ * Collects navigator, screen, device, and permission signals.
  */
 
-interface NavigatorSignals {
-  timezone: string | null;
-  language: string | null;
-  hardwareConcurrency: number | null;
-  webdriver: boolean | null;
-  userAgent: string | null;
-  appVersion: string | null;
-  platform: string | null;
-  maxTouchPoints: number | null;
-  deviceMemory: number | null;
-  devicePixelRatio: number | null;
-  documentHidden: boolean | null;
-  documentVisibilityState: string | null;
-  screenWidth: number | null;
-  screenHeight: number | null;
-  screenAvailWidth: number | null;
-  screenAvailHeight: number | null;
-  screenColorDepth: number | null;
-  screenPixelDepth: number | null;
-  screenOrientationType: string | null;
-  screenOrientationAngle: number | null;
-  permissionCamera: string | null;
-  permissionMicrophone: string | null;
-  permissionNotifications: string | null;
-  permissionGeolocation: string | null;
-  plugins: string | null;
-  mimeTypes: string | null;
-}
+import type { Screen } from '../types';
 
-function tryGet<T>(fn: () => T, fallback: T): T {
-  try {
-    return fn();
-  } catch {
-    return fallback;
-  }
-}
-
-async function queryPermission(name: string): Promise<string | null> {
-  try {
-    const status = await navigator.permissions.query({
-      name: name as PermissionName,
-    });
-    return status.state;
-  } catch {
-    return null;
-  }
-}
-
-function collectPlugins(): string | null {
-  try {
-    const list: string[] = [];
-    for (let i = 0; i < navigator.plugins.length; i++) {
-      const p = navigator.plugins[i];
-      if (p) list.push(p.name);
-    }
-    return list.join(",");
-  } catch {
-    return null;
-  }
-}
-
-function collectMimeTypes(): string | null {
-  try {
-    const list: string[] = [];
-    for (let i = 0; i < navigator.mimeTypes.length; i++) {
-      const m = navigator.mimeTypes[i];
-      if (m) list.push(m.type);
-    }
-    return list.join(",");
-  } catch {
-    return null;
-  }
-}
+export type NavigatorSignals = {
+  timezone?: string;
+  language?: string;
+  hardwareConcurrency?: number;
+  webdriver?: boolean;
+  userAgent?: string;
+  appVersion?: string;
+  platform?: string;
+  screen: Screen;
+  maxTouchPoints?: number;
+  deviceMemory?: number;
+  permissionsState?: PermissionState;
+  notificationPermission?: NotificationPermission;
+  devicePixelRatio?: number;
+  pluginsLength?: number;
+  mimeTypesCount?: number;
+  documentHidden?: boolean;
+  documentVisibilityState?: DocumentVisibilityState;
+};
 
 export async function collectNavigatorSignals(): Promise<NavigatorSignals> {
-  const [
-    permissionCamera,
-    permissionMicrophone,
-    permissionNotifications,
-    permissionGeolocation,
-  ] = await Promise.all([
-    queryPermission("camera"),
-    queryPermission("microphone"),
-    queryPermission("notifications"),
-    queryPermission("geolocation"),
-  ]);
-
-  const nav = navigator as Navigator & { deviceMemory?: number };
-  const scr = screen;
-  const orient = tryGet(() => scr.orientation, null);
+  const permissionsState =
+    'permissions' in navigator
+      ? await navigator.permissions
+          .query({ name: 'notifications' })
+          .then((r) => r.state)
+          .catch(() => undefined)
+      : undefined;
 
   return {
-    timezone: tryGet(
-      () => Intl.DateTimeFormat().resolvedOptions().timeZone,
-      null,
-    ),
-    language: tryGet(() => navigator.language, null),
-    hardwareConcurrency: tryGet(() => navigator.hardwareConcurrency, null),
-    webdriver: tryGet(() => navigator.webdriver, null),
-    userAgent: tryGet(() => navigator.userAgent, null),
-    appVersion: tryGet(() => navigator.appVersion, null),
-    platform: tryGet(() => navigator.platform, null),
-    maxTouchPoints: tryGet(() => navigator.maxTouchPoints, null),
-    deviceMemory: tryGet(() => nav.deviceMemory ?? null, null),
-    devicePixelRatio: tryGet(() => window.devicePixelRatio, null),
-    documentHidden: tryGet(() => document.hidden, null),
-    documentVisibilityState: tryGet(() => document.visibilityState, null),
-    screenWidth: tryGet(() => scr.width, null),
-    screenHeight: tryGet(() => scr.height, null),
-    screenAvailWidth: tryGet(() => scr.availWidth, null),
-    screenAvailHeight: tryGet(() => scr.availHeight, null),
-    screenColorDepth: tryGet(() => scr.colorDepth, null),
-    screenPixelDepth: tryGet(() => scr.pixelDepth, null),
-    screenOrientationType: orient ? orient.type : null,
-    screenOrientationAngle: orient ? orient.angle : null,
-    permissionCamera,
-    permissionMicrophone,
-    permissionNotifications,
-    permissionGeolocation,
-    plugins: collectPlugins(),
-    mimeTypes: collectMimeTypes(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    language: navigator.language,
+    hardwareConcurrency: navigator.hardwareConcurrency,
+    webdriver: navigator.webdriver,
+    userAgent: navigator.userAgent,
+    appVersion: navigator.appVersion,
+    platform: navigator.platform,
+    screen: {
+      width: screen.width,
+      height: screen.height,
+      availWidth: screen.availWidth,
+      availHeight: screen.availHeight,
+      windowOuterWidth: window.outerWidth,
+      windowOuterHeight: window.outerHeight,
+      colorDepth: screen.colorDepth,
+      pixelDepth: screen.pixelDepth,
+    },
+    maxTouchPoints: navigator.maxTouchPoints,
+    deviceMemory:
+      'deviceMemory' in navigator && typeof navigator.deviceMemory === 'number'
+        ? navigator.deviceMemory
+        : undefined,
+    permissionsState,
+    notificationPermission:
+      'Notification' in window ? Notification.permission : undefined,
+    devicePixelRatio: window.devicePixelRatio,
+    pluginsLength: navigator.plugins.length,
+    mimeTypesCount: navigator.mimeTypes.length,
+    documentHidden: document.hidden,
+    documentVisibilityState: document.visibilityState,
   };
 }

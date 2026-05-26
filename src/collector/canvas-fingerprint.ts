@@ -1,62 +1,74 @@
 /**
- * Canvas fingerprinting via a deterministic drawing scene.
- * Renders text, shapes, and gradients to a canvas and SHA-256 hashes the result.
+ * Canvas fingerprint: renders a deterministic scene and hashes the PNG output.
  */
 
-import { sha256Base64Url } from "./crypto";
+import { sha256BufferBase64Url } from './crypto';
 
-function drawCanvasScene(ctx: CanvasRenderingContext2D): void {
-  // Background
-  ctx.fillStyle = "#f0f0f0";
-  ctx.fillRect(0, 0, 300, 150);
+function drawCanvasScene(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+): void {
+  ctx.font = '18px "Arial", "Helvetica Neue", sans-serif';
+  ctx.fillStyle = '#e91e63';
+  ctx.fillText('WorkOS Radar \u{1F469}\u{200D}\u{1F4BB} 0xA9f3', 2, 20);
 
-  // Text with specific font stack
-  ctx.textBaseline = "top";
-  ctx.font = "14px 'Arial'";
-  ctx.fillStyle = "#069";
-  ctx.fillText("WorkOS Radar <canvas> fp", 2, 2);
-
-  // Smaller text with different font
-  ctx.font = "11px 'Times New Roman'";
-  ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
-  ctx.fillText("Signal collection", 4, 22);
-
-  // Colored rectangle
-  ctx.fillStyle = "rgb(255, 0, 255)";
-  ctx.fillRect(100, 30, 80, 50);
-
-  // Gradient
-  const gradient = ctx.createLinearGradient(0, 0, 300, 0);
-  gradient.addColorStop(0, "red");
-  gradient.addColorStop(0.5, "green");
-  gradient.addColorStop(1, "blue");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 90, 300, 20);
-
-  // Circle
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = 'rgba(0, 120, 255, 0.6)';
   ctx.beginPath();
-  ctx.arc(50, 70, 20, 0, Math.PI * 2, true);
-  ctx.closePath();
-  ctx.fillStyle = "rgba(0, 0, 128, 0.5)";
+  ctx.arc(60, 40, 25, 0, Math.PI * 2);
   ctx.fill();
 
-  // Emoji (varies by OS/renderer)
-  ctx.font = "18px Arial";
-  ctx.fillText("😀🔒", 200, 50);
+  ctx.fillStyle = 'rgba(255, 200, 0, 0.6)';
+  ctx.fillRect(80, 15, 50, 35);
+
+  const grad = ctx.createLinearGradient(150, 0, 280, 60);
+  grad.addColorStop(0, '#ff6f00');
+  grad.addColorStop(1, '#1a237e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(150, 10, 120, 45);
 }
 
-export async function collectCanvasFingerprint(): Promise<string | null> {
+export const collectCanvasFingerprint = async (): Promise<
+  string | undefined
+> => {
   try {
-    const canvas = document.createElement("canvas");
-    canvas.width = 300;
-    canvas.height = 150;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
+    if (typeof OffscreenCanvas !== 'undefined') {
+      try {
+        const canvas = new OffscreenCanvas(280, 60);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          drawCanvasScene(ctx);
+          const blob = await canvas.convertToBlob({ type: 'image/png' });
+          const buf = await blob.arrayBuffer();
+          return await sha256BufferBase64Url(buf);
+        }
+      } catch {
+        /* fall through to DOM canvas */
+      }
+    }
 
-    drawCanvasScene(ctx);
-    const dataUrl = canvas.toDataURL("image/png");
-    return sha256Base64Url(dataUrl);
+    if (typeof document !== 'undefined') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 280;
+      canvas.height = 60;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return undefined;
+      }
+
+      drawCanvasScene(ctx);
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png'),
+      );
+      if (!blob) {
+        return undefined;
+      }
+
+      const buf = await blob.arrayBuffer();
+      return await sha256BufferBase64Url(buf);
+    }
+
+    return undefined;
   } catch {
-    return null;
+    return undefined;
   }
-}
+};

@@ -1,169 +1,300 @@
 /**
- * Minimal-surface fingerprinting: window features, CSS keys, voices,
- * MIME types, and fonts. Each produces a hash + count pair.
+ * Minimal surface signals: window features, CSS property keys, speech
+ * synthesis voices, media MIME support, and installed font detection.
  */
 
-import type { HashCount } from "../types";
-import { hashList } from "./crypto";
+import type { MinimalSurface } from '../types';
+import { hashList } from './crypto';
 
-/** Collect enumerable window property names. */
-export async function collectWindowFeatures(): Promise<HashCount | null> {
-  try {
-    const keys = Object.getOwnPropertyNames(window).sort();
-    return { hash: await hashList(keys), count: keys.length };
-  } catch {
-    return null;
+const PROBE_FONTS = [
+  'Arial',
+  'Verdana',
+  'Helvetica',
+  'Tahoma',
+  'Trebuchet MS',
+  'Georgia',
+  'Garamond',
+  'Courier New',
+  'Brush Script MT',
+  'Palatino Linotype',
+  'Lucida Console',
+  'Comic Sans MS',
+  'Impact',
+  'Lucida Sans Unicode',
+  'Century Gothic',
+  'Segoe UI',
+  'Cambria',
+  'Calibri',
+  'Consolas',
+  'Menlo',
+  'Monaco',
+  'SF Pro',
+  'Roboto',
+  'Noto Sans',
+  'Ubuntu',
+  'Cantarell',
+  'DejaVu Sans',
+];
+
+const collectFonts = async (): Promise<{
+  fontsHash: string | undefined;
+  fontsCount: number;
+}> => {
+  if (!document.body) {
+    return { fontsHash: undefined, fontsCount: 0 };
   }
-}
 
-/** Collect CSS property names from computed style. */
-export async function collectCssKeys(): Promise<HashCount | null> {
+  const span = document.createElement('span');
+
   try {
-    const el = document.createElement("div");
-    document.body.appendChild(el);
-    const style = getComputedStyle(el);
-    const keys: string[] = [];
-    for (let i = 0; i < style.length; i++) {
-      const k = style[i];
-      if (k) keys.push(k);
-    }
-    document.body.removeChild(el);
-    return { hash: await hashList(keys), count: keys.length };
-  } catch {
-    return null;
-  }
-}
-
-/** Collect speechSynthesis voices. */
-export async function collectVoices(): Promise<HashCount | null> {
-  try {
-    if (!window.speechSynthesis) return null;
-
-    const getVoices = (): SpeechSynthesisVoice[] =>
-      window.speechSynthesis.getVoices();
-
-    let voices = getVoices();
-    if (voices.length === 0) {
-      // Voices may load asynchronously
-      voices = await new Promise<SpeechSynthesisVoice[]>((resolve) => {
-        const timer = setTimeout(() => resolve([]), 500);
-        window.speechSynthesis.onvoiceschanged = () => {
-          clearTimeout(timer);
-          resolve(getVoices());
-        };
-        // Try again immediately in case they loaded during setup
-        const immediate = getVoices();
-        if (immediate.length > 0) {
-          clearTimeout(timer);
-          resolve(immediate);
-        }
-      });
-    }
-
-    if (voices.length === 0) return null;
-    const names = voices.map((v) => `${v.name}:${v.lang}`);
-    return { hash: await hashList(names), count: names.length };
-  } catch {
-    return null;
-  }
-}
-
-/** Collect supported media MIME types. */
-export async function collectMediaMime(): Promise<HashCount | null> {
-  try {
-    const video = document.createElement("video");
-    const mimeTypes = [
-      "video/mp4",
-      'video/mp4; codecs="avc1.42E01E"',
-      'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',
-      "video/ogg",
-      'video/ogg; codecs="theora"',
-      "video/webm",
-      'video/webm; codecs="vp8"',
-      'video/webm; codecs="vp9"',
-      "audio/mp4",
-      'audio/mp4; codecs="mp4a.40.2"',
-      "audio/mpeg",
-      "audio/ogg",
-      'audio/ogg; codecs="vorbis"',
-      "audio/wav",
-      "audio/webm",
-      'audio/webm; codecs="opus"',
-    ];
-
-    const supported: string[] = [];
-    for (const mime of mimeTypes) {
-      const result = video.canPlayType(mime);
-      if (result) {
-        supported.push(`${mime}:${result}`);
-      }
-    }
-
-    return { hash: await hashList(supported), count: supported.length };
-  } catch {
-    return null;
-  }
-}
-
-/** Font detection via rendering width comparison. */
-export async function collectFonts(): Promise<HashCount | null> {
-  try {
-    const baseFonts = ["monospace", "sans-serif", "serif"] as const;
-    const testFonts = [
-      "Arial",
-      "Arial Black",
-      "Comic Sans MS",
-      "Courier New",
-      "Georgia",
-      "Impact",
-      "Lucida Console",
-      "Lucida Sans Unicode",
-      "Palatino Linotype",
-      "Tahoma",
-      "Times New Roman",
-      "Trebuchet MS",
-      "Verdana",
-      "Helvetica",
-      "Helvetica Neue",
-      "Segoe UI",
-      "Roboto",
-      "Ubuntu",
-      "Cantarell",
-      "Noto Sans",
-    ];
-
-    const testString = "mmmmmmmmmmlli";
-    const testSize = "72px";
-
-    const span = document.createElement("span");
-    span.style.position = "absolute";
-    span.style.left = "-9999px";
-    span.style.fontSize = testSize;
-    span.style.lineHeight = "normal";
+    const baseFonts = ['monospace', 'sans-serif', 'serif'];
+    const testString = 'mmMwWLli10Oo#@';
+    const testSize = '72px';
+    // Neutralize inherited host CSS so measurements are deterministic across apps.
+    span.style.cssText = [
+      'all: initial',
+      'display: inline-block',
+      'box-sizing: content-box',
+      'position: absolute',
+      'left: -9999px',
+      'top: 0',
+      'margin: 0',
+      'padding: 0',
+      'border: 0',
+      'line-height: normal',
+      'letter-spacing: normal',
+      'word-spacing: normal',
+      'font-style: normal',
+      'font-weight: normal',
+      'font-variant: normal',
+      'text-transform: none',
+      'text-decoration: none',
+      'vertical-align: baseline',
+      'white-space: nowrap',
+      `font-size: ${testSize}`,
+    ].join('; ');
     span.textContent = testString;
     document.body.appendChild(span);
 
-    // Measure base widths
-    const baseWidths: Record<string, number> = {};
+    const baselines = new Map<string, { w: number; h: number }>();
     for (const base of baseFonts) {
       span.style.fontFamily = base;
-      baseWidths[base] = span.offsetWidth;
+      baselines.set(base, {
+        w: span.offsetWidth,
+        h: span.offsetHeight,
+      });
     }
 
     const detected: string[] = [];
-    for (const font of testFonts) {
+    for (const font of PROBE_FONTS) {
       for (const base of baseFonts) {
         span.style.fontFamily = `'${font}', ${base}`;
-        if (span.offsetWidth !== baseWidths[base]) {
+        const baseline = baselines.get(base);
+        if (
+          baseline &&
+          (span.offsetWidth !== baseline.w || span.offsetHeight !== baseline.h)
+        ) {
           detected.push(font);
           break;
         }
       }
     }
 
-    document.body.removeChild(span);
-    return { hash: await hashList(detected), count: detected.length };
+    const { hash, count } = await hashList(detected);
+    return { fontsHash: hash, fontsCount: count };
   } catch {
-    return null;
+    return { fontsHash: undefined, fontsCount: 0 };
+  } finally {
+    try {
+      if (span.parentNode) {
+        span.parentNode.removeChild(span);
+      }
+    } catch {
+      /* ignore cleanup failures */
+    }
   }
-}
+};
+
+const collectWindowFeatures = async (): Promise<{
+  windowFeaturesHash: string | undefined;
+  windowFeaturesCount: number | undefined;
+}> => {
+  try {
+    const keys = Object.getOwnPropertyNames(window);
+    const { hash, count } = await hashList(keys);
+
+    return {
+      windowFeaturesHash: hash,
+      windowFeaturesCount: count,
+    };
+  } catch {
+    return {
+      windowFeaturesHash: undefined,
+      windowFeaturesCount: undefined,
+    };
+  }
+};
+
+const collectCssKeys = async (): Promise<{
+  cssKeysHash: string | undefined;
+  cssKeysCount: number | undefined;
+}> => {
+  try {
+    if (!document.body) {
+      return { cssKeysHash: undefined, cssKeysCount: 0 };
+    }
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    try {
+      const style = window.getComputedStyle(el);
+      const keys = Array.from(style);
+      const { hash, count } = await hashList(keys);
+      return {
+        cssKeysHash: hash,
+        cssKeysCount: count,
+      };
+    } finally {
+      try {
+        document.body.removeChild(el);
+      } catch {
+        /* ignore cleanup failures */
+      }
+    }
+  } catch {
+    return {
+      cssKeysHash: undefined,
+      cssKeysCount: undefined,
+    };
+  }
+};
+
+const collectVoices = async (): Promise<{
+  voicesHash: string | undefined;
+  voicesLocalCount: number | undefined;
+  voicesRemoteCount: number | undefined;
+  voicesLanguagesCount: number | undefined;
+}> => {
+  try {
+    if (!('speechSynthesis' in window)) {
+      return {
+        voicesHash: undefined,
+        voicesLocalCount: 0,
+        voicesRemoteCount: 0,
+        voicesLanguagesCount: 0,
+      };
+    }
+
+    // Safari sometimes loads voices async
+    await new Promise<void>((resolve) => {
+      const voices = speechSynthesis.getVoices();
+      if (voices.length) {
+        return resolve();
+      }
+
+      const cleanup = () => {
+        speechSynthesis.onvoiceschanged = null;
+      };
+
+      speechSynthesis.onvoiceschanged = () => {
+        cleanup();
+        resolve();
+      };
+
+      setTimeout(() => {
+        cleanup();
+        resolve();
+      }, 500); // fallback
+    });
+
+    const voices = speechSynthesis.getVoices();
+
+    const local = voices.filter((v) => v.localService).map((v) => v.name);
+    const remote = voices.filter((v) => !v.localService).map((v) => v.name);
+    const languages = voices.map((v) => v.lang);
+
+    const all = [...local, ...remote, ...languages];
+
+    const { hash } = await hashList(all);
+
+    return {
+      voicesHash: hash,
+      voicesLocalCount: new Set(local).size,
+      voicesRemoteCount: new Set(remote).size,
+      voicesLanguagesCount: new Set(languages).size,
+    };
+  } catch {
+    return {
+      voicesHash: undefined,
+      voicesLocalCount: undefined,
+      voicesRemoteCount: undefined,
+      voicesLanguagesCount: undefined,
+    };
+  }
+};
+
+const TEST_MIME_TYPES = [
+  'audio/aac',
+  'audio/mpeg',
+  'audio/ogg; codecs="vorbis"',
+  'audio/wav; codecs="1"',
+  'audio/x-m4a',
+  'video/mp4; codecs="avc1.42E01E"',
+  'video/webm; codecs="vp8"',
+  'video/webm; codecs="vp9"',
+  'video/x-matroska',
+];
+
+const collectMediaMime = async (): Promise<{
+  mediaMimeHash: string | undefined;
+  mediaMimeCount: number | undefined;
+}> => {
+  try {
+    const audio = document.createElement('audio');
+    const video = document.createElement('video');
+
+    const supported: string[] = [];
+
+    for (const type of TEST_MIME_TYPES) {
+      const audioSupport = audio.canPlayType(type);
+      const videoSupport = video.canPlayType(type);
+
+      if (audioSupport || videoSupport) {
+        supported.push(type);
+      }
+    }
+
+    const { hash, count } = await hashList(supported);
+
+    return {
+      mediaMimeHash: hash,
+      mediaMimeCount: count,
+    };
+  } catch {
+    return {
+      mediaMimeHash: undefined,
+      mediaMimeCount: undefined,
+    };
+  }
+};
+
+export const collectMinimalSurface = async (): Promise<MinimalSurface> => {
+  const [windowFeatures, cssKeys, voices, mediaMime, fonts] = await Promise.all(
+    [
+      collectWindowFeatures(),
+      collectCssKeys(),
+      collectVoices(),
+      collectMediaMime(),
+      collectFonts(),
+    ],
+  );
+
+  return {
+    ...windowFeatures,
+    ...cssKeys,
+    ...voices,
+    ...mediaMime,
+    ...fonts,
+  };
+};
