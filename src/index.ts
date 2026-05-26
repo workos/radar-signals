@@ -89,6 +89,8 @@ export class WorkOSRadar {
    * Use for subsequent auth attempts on the same page.
    */
   async refresh(): Promise<string> {
+    // Resolve any pending waiters from the previous cycle so they don't hang.
+    this.resolveCompletion();
     this.signalsId = ulid();
     this.state = { phase: "collecting" };
     this.completionPromise = new Promise<void>((resolve) => {
@@ -110,6 +112,9 @@ export class WorkOSRadar {
   }
 
   private async run(): Promise<void> {
+    // Capture the resolver by value so that if refresh() overwrites
+    // this.resolveCompletion mid-flight, we still resolve the correct promise.
+    const resolve = this.resolveCompletion;
     try {
       // Collect signals (main thread + worker in parallel)
       const [signals, workerResult] = await Promise.all([
@@ -127,19 +132,21 @@ export class WorkOSRadar {
 
       this.state = { phase: "sending", signals };
 
-      // POST to API (fail-open)
-      await postSignals({
+      // POST to API (fail-open — check return value)
+      const result = await postSignals({
         id: this.signalsId,
         signals,
         clientId: this.options.clientId,
         apiUrl: this.options.apiUrl,
       });
 
-      this.state = { phase: "ready", signals };
+      this.state = result.success
+        ? { phase: "ready", signals }
+        : { phase: "error", signals };
     } catch {
       this.state = { phase: "error", signals: null };
     } finally {
-      this.resolveCompletion();
+      resolve();
     }
   }
 }
