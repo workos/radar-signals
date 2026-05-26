@@ -71,13 +71,16 @@ export function setupPuppeteerDetector(
     typeof globalThis.Document === "undefined" ||
     typeof globalThis.Element === "undefined"
   ) {
-    singleton = {
+    const api: PuppeteerDetectorAPI = {
       snapshot: () => ({ detected: false, documentNotAvailable: true }),
       destroy: () => {
-        singleton = undefined;
+        if (singleton === api) {
+          singleton = undefined;
+        }
       },
     };
-    return singleton;
+    singleton = api;
+    return api;
   }
 
   const matches: QSMatch[] = [];
@@ -195,18 +198,6 @@ export function setupPuppeteerDetector(
     // Silently fail if prototypes are frozen or non-configurable
   }
 
-  // Safety timeout: fully tear down if destroy() is never called.
-  // Uses an inline callback (rather than referencing `destroy`) because
-  // `destroy` is defined after this point; the callback executes long after
-  // the function returns, so the reference is safe at runtime, but an inline
-  // form avoids any confusion about temporal dead zones.
-  if (_installed && safetyTimeoutMs > 0) {
-    _safetyTimer = setTimeout(() => {
-      restore();
-      singleton = undefined;
-    }, safetyTimeoutMs);
-  }
-
   const snapshot = (): PuppeteerDetection => ({
     detected: matches.length > 0,
     documentNotAvailable: false,
@@ -214,11 +205,27 @@ export function setupPuppeteerDetector(
 
   const destroy = () => {
     restore();
-    singleton = undefined;
+    // Only clear the singleton if it still refers to this instance.
+    // A stale handle must not clobber a newer detector's singleton.
+    if (singleton === api) {
+      singleton = undefined;
+    }
   };
 
-  singleton = { snapshot, destroy };
-  return singleton;
+  const api: PuppeteerDetectorAPI = { snapshot, destroy };
+
+  // Safety timeout: fully tear down if destroy() is never called.
+  if (_installed && safetyTimeoutMs > 0) {
+    _safetyTimer = setTimeout(() => {
+      restore();
+      if (singleton === api) {
+        singleton = undefined;
+      }
+    }, safetyTimeoutMs);
+  }
+
+  singleton = api;
+  return api;
 }
 
 /**

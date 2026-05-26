@@ -458,6 +458,34 @@ describe("setupPuppeteerDetector", () => {
       expect(b.snapshot().detected).toBe(true);
       a.destroy();
     });
+
+    it("stale destroy() does not corrupt a newer detector", () => {
+      const nativeQS = Document.prototype.querySelector;
+
+      // 1. Create detA with a short timeout
+      const detA = setupPuppeteerDetector(5_000);
+      expect(Document.prototype.querySelector).not.toBe(nativeQS);
+
+      // 2. Safety timeout fires — restores prototypes, clears singleton
+      vi.advanceTimersByTime(5_000);
+      expect(Document.prototype.querySelector).toBe(nativeQS);
+
+      // 3. Create detB — should capture native prototypes as originals
+      const detB = setupPuppeteerDetector(60_000);
+      expect(detB).not.toBe(detA);
+      expect(Document.prototype.querySelector).not.toBe(nativeQS);
+
+      // 4. Consumer calls stale detA.destroy() — must NOT clear detB's singleton
+      detA.destroy();
+
+      // 5. Singleton should still be detB, not undefined
+      const detC = setupPuppeteerDetector();
+      expect(detC).toBe(detB);
+
+      // 6. detB.destroy() restores to actual native prototypes (not wrapper A)
+      detB.destroy();
+      expect(Document.prototype.querySelector).toBe(nativeQS);
+    });
   });
 
   // ---------------------------------------------------------------------------
