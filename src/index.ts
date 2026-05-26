@@ -18,7 +18,7 @@ export type { RadarInitOptions, Signals, RadarSignals, HashCount, MediaPreferenc
 /** Current state of the Radar instance. */
 type RadarState =
   | { phase: "collecting" }
-  | { phase: "sending" }
+  | { phase: "sending"; signals: Signals }
   | { phase: "ready"; signals: Signals }
   | { phase: "error"; signals: Signals | null };
 
@@ -69,16 +69,16 @@ export class WorkOSRadar {
    */
   getTokenSync(): string {
     const { state } = this;
-    if (state.phase === "ready" || state.phase === "error") {
-      // Already sent (or failed) — beacon the signals if available
-      if (state.signals) {
-        beaconSignals({
-          id: this.signalsId,
-          signals: state.signals,
-          clientId: this.options.clientId,
-          apiUrl: this.options.apiUrl,
-        });
-      }
+    // Only beacon if signals are collected but not yet sent
+    // (e.g., navigation interrupts the in-flight POST).
+    // Don't beacon in "ready" state — POST already succeeded.
+    if (state.phase === "sending" || (state.phase === "error" && state.signals)) {
+      beaconSignals({
+        id: this.signalsId,
+        signals: state.signals!,
+        clientId: this.options.clientId,
+        apiUrl: this.options.apiUrl,
+      });
     }
     // In all cases return the token — fail-open
     return this.signalsId;
@@ -125,7 +125,7 @@ export class WorkOSRadar {
 
       if (this.destroyed) return;
 
-      this.state = { phase: "sending" };
+      this.state = { phase: "sending", signals };
 
       // POST to API (fail-open)
       await postSignals({

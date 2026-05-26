@@ -60,12 +60,10 @@ export function beaconSignals(params: PostSignalsParams): boolean {
     signals: { ...signals, submittedAtMs: Date.now() },
   });
 
-  // Try sendBeacon first (more reliable during unload)
+  // Try sendBeacon first (more reliable during unload).
+  // Note: sendBeacon doesn't support custom headers, so include clientId
+  // in the body for the endpoint to extract.
   if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-    const blob = new Blob([body], { type: "application/json" });
-    // Note: sendBeacon doesn't support custom headers, but the endpoint
-    // can accept clientId from the body or a query parameter as fallback.
-    // For now, include clientId in the body for beacon.
     const beaconBody = JSON.stringify({
       id,
       clientId,

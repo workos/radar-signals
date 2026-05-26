@@ -4,14 +4,18 @@ import type { RadarInitOptions } from "../types";
 
 /**
  * Standalone hook (no context needed) for signal collection.
- * Initializes Radar on mount and cleans up on unmount.
+ * Initializes Radar eagerly during render and cleans up on unmount.
  */
 export function useRadarSignals(options: RadarInitOptions) {
+  // Lazy-initialize on first render so the instance is available
+  // immediately (before any effects fire).
   const radarRef = useRef<WorkOSRadar | null>(null);
+  if (radarRef.current === null) {
+    radarRef.current = WorkOSRadar.init(options);
+  }
 
   useEffect(() => {
-    const radar = WorkOSRadar.init(options);
-    radarRef.current = radar;
+    const radar = radarRef.current!;
     return () => {
       radar.destroy();
       radarRef.current = null;
