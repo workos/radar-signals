@@ -1,4 +1,4 @@
-import type { RadarSignalsOptions } from "../types";
+import type { RadarInitOptions } from "../types";
 
 export const DEFAULT_API_URL = "https://api.workos.com";
 const SIGNALS_PATH = "/radar/signals";
@@ -8,7 +8,7 @@ export interface SignalsPayload {
   signals: Record<string, unknown>;
 }
 
-export type ClientOptions = Pick<RadarSignalsOptions, "clientId" | "apiUrl">;
+export type ClientOptions = Pick<RadarInitOptions, "clientId" | "apiUrl">;
 
 export interface SubmitResult {
   signalsId: string;

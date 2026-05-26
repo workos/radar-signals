@@ -5,14 +5,14 @@ import {
   DEFAULT_API_URL,
   type SignalsPayload,
 } from "./client";
-import type { RadarSignalsOptions } from "../types";
+import type { RadarInitOptions } from "../types";
 
 const TEST_PAYLOAD: SignalsPayload = {
   id: "01HWXYZ1234567890ABCDEF",
   signals: { timezone: "America/New_York", language: "en-US" },
 };
 
-const TEST_OPTIONS: Pick<RadarSignalsOptions, "clientId" | "apiUrl"> = {
+const TEST_OPTIONS: Pick<RadarInitOptions, "clientId" | "apiUrl"> = {
   clientId: "client_01ABC",
 };
 

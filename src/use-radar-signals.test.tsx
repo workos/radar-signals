@@ -1,41 +1,69 @@
-import { describe, it, expect } from "vitest";
-import { renderHook, act } from "@testing-library/react";
-import { useRadarSignals } from "./use-radar-signals";
+import { describe, it, expect, vi } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { useRadarSignals } from './use-radar-signals';
+import type { Signals } from './types';
 
-describe("useRadarSignals", () => {
-  it("returns a function that collects signals", () => {
+const MOCK_SIGNALS: Signals = {
+  screen: { width: 1920, height: 1080 },
+  worker: { ok: false, error: 'not configured' },
+  createdAtMs: 1234567890,
+};
+
+vi.mock('./collector', () => ({
+  collectSignals: vi.fn(() => Promise.resolve(MOCK_SIGNALS)),
+}));
+
+describe('useRadarSignals', () => {
+  it('returns an object with a getSignals method', () => {
     const { result } = renderHook(() =>
-      useRadarSignals({ clientId: "client_test_123" }),
+      useRadarSignals({ clientId: 'client_test_123' }),
     );
 
-    expect(result.current).toBeTypeOf("function");
+    expect(result.current).toHaveProperty('getSignals');
+    expect(result.current.getSignals).toBeTypeOf('function');
   });
 
-  it("produces a signal when the returned function is called", () => {
+  it('getSignals returns a promise that resolves to signals', async () => {
     const { result } = renderHook(() =>
-      useRadarSignals({ clientId: "client_test_123" }),
+      useRadarSignals({ clientId: 'client_test_123' }),
     );
 
-    let signals: ReturnType<typeof result.current> | undefined;
-    act(() => {
-      signals = result.current();
+    let signals: Signals | undefined;
+    await act(async () => {
+      signals = await result.current.getSignals();
     });
 
     expect(signals).toBeDefined();
-    expect(signals!.id).toBeTypeOf("string");
-    expect(signals!.id.length).toBe(26);
-    expect(signals!.collectedAt).toBeTypeOf("string");
+    expect(signals).toEqual(MOCK_SIGNALS);
   });
 
-  it("returns a stable function reference for the same clientId", () => {
+  it('returns a stable getSignals reference across re-renders', () => {
     const { result, rerender } = renderHook(() =>
-      useRadarSignals({ clientId: "client_test_123" }),
+      useRadarSignals({ clientId: 'client_test_123' }),
     );
 
-    const first = result.current;
+    const first = result.current.getSignals;
     rerender();
-    const second = result.current;
+    const second = result.current.getSignals;
 
     expect(first).toBe(second);
+  });
+
+  it('collects fresh signals when called before mount or after unmount', async () => {
+    const { result, unmount } = renderHook(() =>
+      useRadarSignals({ clientId: 'client_test_123' }),
+    );
+
+    const getSignals = result.current.getSignals;
+    unmount();
+
+    // After unmount, getSignals should still work by collecting fresh signals
+    let signals: Signals | undefined;
+    await act(async () => {
+      signals = await getSignals();
+    });
+
+    expect(signals).toBeDefined();
+    expect(signals).toEqual(MOCK_SIGNALS);
   });
 });
