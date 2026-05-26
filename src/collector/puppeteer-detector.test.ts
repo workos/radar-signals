@@ -418,6 +418,18 @@ describe("setupPuppeteerDetector", () => {
       vi.advanceTimersByTime(1);
       expect(Document.prototype.querySelector).toBe(origQS);
     });
+
+    it("clears singleton after timeout so a fresh detector can be installed", () => {
+      const origQS = Document.prototype.querySelector;
+      const stale = setupPuppeteerDetector(5_000);
+      vi.advanceTimersByTime(5_000);
+
+      // Singleton should be cleared — next call creates a fresh detector
+      const fresh = setupPuppeteerDetector(5_000);
+      expect(fresh).not.toBe(stale);
+      expect(Document.prototype.querySelector).not.toBe(origQS);
+      fresh.destroy();
+    });
   });
 
   // ---------------------------------------------------------------------------

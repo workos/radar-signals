@@ -71,10 +71,13 @@ export function setupPuppeteerDetector(
     typeof globalThis.Document === "undefined" ||
     typeof globalThis.Element === "undefined"
   ) {
-    return {
+    singleton = {
       snapshot: () => ({ detected: false, documentNotAvailable: true }),
-      destroy: () => void 0,
+      destroy: () => {
+        singleton = undefined;
+      },
     };
+    return singleton;
   }
 
   const matches: QSMatch[] = [];
@@ -192,9 +195,16 @@ export function setupPuppeteerDetector(
     // Silently fail if prototypes are frozen or non-configurable
   }
 
-  // Safety timeout: auto-restore if destroy() is never called
+  // Safety timeout: fully tear down if destroy() is never called.
+  // Uses an inline callback (rather than referencing `destroy`) because
+  // `destroy` is defined after this point; the callback executes long after
+  // the function returns, so the reference is safe at runtime, but an inline
+  // form avoids any confusion about temporal dead zones.
   if (_installed && safetyTimeoutMs > 0) {
-    _safetyTimer = setTimeout(restore, safetyTimeoutMs);
+    _safetyTimer = setTimeout(() => {
+      restore();
+      singleton = undefined;
+    }, safetyTimeoutMs);
   }
 
   const snapshot = (): PuppeteerDetection => ({
@@ -220,5 +230,4 @@ export function _resetDetectorSingleton(): void {
   if (singleton) {
     singleton.destroy();
   }
-  singleton = undefined;
 }
