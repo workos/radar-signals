@@ -4,15 +4,15 @@ import {
   beaconSignals,
   DEFAULT_API_URL,
   type SignalsPayload,
-  type ClientOptions,
 } from "./client";
+import type { RadarSignalsOptions } from "../types";
 
 const TEST_PAYLOAD: SignalsPayload = {
   id: "01HWXYZ1234567890ABCDEF",
   signals: { timezone: "America/New_York", language: "en-US" },
 };
 
-const TEST_OPTIONS: ClientOptions = {
+const TEST_OPTIONS: Pick<RadarSignalsOptions, "clientId" | "apiUrl"> = {
   clientId: "client_01ABC",
 };
 
@@ -146,33 +146,8 @@ describe("beaconSignals", () => {
     expect(result).toEqual({ signalsId: TEST_PAYLOAD.id, submitted: true });
   });
 
-  it("falls back to sendBeacon when fetch is unavailable", () => {
+  it("returns submitted: false when fetch is unavailable", () => {
     vi.stubGlobal("fetch", undefined);
-    const sendBeacon = vi.fn().mockReturnValue(true);
-    vi.stubGlobal("navigator", { sendBeacon });
-
-    const result = beaconSignals(TEST_PAYLOAD, TEST_OPTIONS);
-
-    expect(sendBeacon).toHaveBeenCalledWith(
-      `${DEFAULT_API_URL}/radar/signals`,
-      expect.any(Blob),
-    );
-    expect(result).toEqual({ signalsId: TEST_PAYLOAD.id, submitted: true });
-  });
-
-  it("returns submitted: false when sendBeacon returns false", () => {
-    vi.stubGlobal("fetch", undefined);
-    const sendBeacon = vi.fn().mockReturnValue(false);
-    vi.stubGlobal("navigator", { sendBeacon });
-
-    const result = beaconSignals(TEST_PAYLOAD, TEST_OPTIONS);
-
-    expect(result).toEqual({ signalsId: TEST_PAYLOAD.id, submitted: false });
-  });
-
-  it("returns submitted: false when neither fetch nor sendBeacon is available", () => {
-    vi.stubGlobal("fetch", undefined);
-    vi.stubGlobal("navigator", {});
 
     const result = beaconSignals(TEST_PAYLOAD, TEST_OPTIONS);
 
@@ -181,7 +156,6 @@ describe("beaconSignals", () => {
 
   it("always returns the signalsId (fail-open)", () => {
     vi.stubGlobal("fetch", undefined);
-    vi.stubGlobal("navigator", {});
 
     const result = beaconSignals(TEST_PAYLOAD, TEST_OPTIONS);
 

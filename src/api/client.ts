@@ -1,3 +1,5 @@
+import type { RadarSignalsOptions } from "../types";
+
 export const DEFAULT_API_URL = "https://api.workos.com";
 const SIGNALS_PATH = "/radar/signals";
 
@@ -6,13 +8,15 @@ export interface SignalsPayload {
   signals: Record<string, unknown>;
 }
 
-export interface ClientOptions {
-  clientId: string;
-  apiUrl?: string;
-}
+export type ClientOptions = Pick<RadarSignalsOptions, "clientId" | "apiUrl">;
 
 export interface SubmitResult {
   signalsId: string;
+  /**
+   * For {@link submitSignals}: `true` when the server responded with 2xx.
+   * For {@link beaconSignals}: `true` when the request was dispatched
+   * (fire-and-forget — the server response is not awaited).
+   */
   submitted: boolean;
 }
 
@@ -54,10 +58,12 @@ export async function submitSignals(
 }
 
 /**
- * Submit signals via a fire-and-forget mechanism for page-unload scenarios.
+ * Submit signals via fetch with `keepalive` for page-unload scenarios.
  *
- * Uses fetch with keepalive (preferred, supports Authorization header),
- * falling back to navigator.sendBeacon.
+ * This is fire-and-forget: the request is dispatched and the function
+ * returns immediately without awaiting a server response. The `submitted`
+ * field indicates whether the request was dispatched, not whether the
+ * server accepted it.
  *
  * Fail-open: always returns the signalsId.
  */
@@ -69,7 +75,6 @@ export function beaconSignals(
   const body = JSON.stringify(payload);
 
   try {
-    // Prefer fetch + keepalive: supports custom headers
     if (typeof fetch === "function") {
       fetch(url, {
         method: "POST",
@@ -79,16 +84,6 @@ export function beaconSignals(
       }).catch(() => {});
 
       return { signalsId: payload.id, submitted: true };
-    }
-
-    // Fallback: sendBeacon (no custom headers supported)
-    if (
-      typeof navigator !== "undefined" &&
-      typeof navigator.sendBeacon === "function"
-    ) {
-      const blob = new Blob([body], { type: "application/json" });
-      const sent = navigator.sendBeacon(url, blob);
-      return { signalsId: payload.id, submitted: sent };
     }
 
     return { signalsId: payload.id, submitted: false };
