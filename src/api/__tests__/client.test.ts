@@ -140,34 +140,11 @@ describe("beaconSignals", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses sendBeacon when available", () => {
-    const mockSendBeacon = vi.fn().mockReturnValue(true);
-    Object.defineProperty(navigator, "sendBeacon", {
-      value: mockSendBeacon,
-      writable: true,
-      configurable: true,
-    });
-
-    const result = beaconSignals({
-      id: "test-id",
-      signals: MOCK_SIGNALS,
-      clientId: "client_123",
-    });
-
-    expect(result).toBe(true);
-    expect(mockSendBeacon).toHaveBeenCalledOnce();
-  });
-
-  it("falls back to fetch with keepalive when sendBeacon is not available", () => {
+  it("uses fetch with keepalive", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: true }),
     );
-    Object.defineProperty(navigator, "sendBeacon", {
-      value: undefined,
-      writable: true,
-      configurable: true,
-    });
 
     const result = beaconSignals({
       id: "test-id",
@@ -176,7 +153,45 @@ describe("beaconSignals", () => {
     });
 
     expect(result).toBe(true);
-    const [, options] = vi.mocked(fetch).mock.calls[0]!;
+    expect(fetch).toHaveBeenCalledOnce();
+
+    const [url, options] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toBe("https://api.workos.com/radar/signals");
     expect(options!.keepalive).toBe(true);
+    expect(options!.headers).toEqual({
+      "Content-Type": "application/json",
+      Authorization: "Bearer client_123",
+    });
+
+    const body = JSON.parse(options!.body as string);
+    expect(body.id).toBe("test-id");
+    expect(body.signals).toHaveProperty("submittedAtMs");
+  });
+
+  it("returns false when fetch is unavailable", () => {
+    vi.stubGlobal("fetch", undefined);
+
+    const result = beaconSignals({
+      id: "test-id",
+      signals: MOCK_SIGNALS,
+      clientId: "client_123",
+    });
+
+    expect(result).toBe(false);
+  });
+
+  it("does not throw when fetch rejects", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("network")),
+    );
+
+    expect(() =>
+      beaconSignals({
+        id: "test-id",
+        signals: MOCK_SIGNALS,
+        clientId: "client_123",
+      }),
+    ).not.toThrow();
   });
 });
