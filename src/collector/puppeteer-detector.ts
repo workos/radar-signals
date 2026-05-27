@@ -1,122 +1,240 @@
 /**
- * Puppeteer detection via querySelector stack-trace analysis.
+ * Puppeteer querySelector stack-trace trap.
  *
  * Patches Document.prototype.querySelector/querySelectorAll and
- * Element.prototype.querySelector/querySelectorAll to inspect call stacks.
- * Puppeteer's internal calls produce distinctive stack traces containing
- * "__puppeteer_utility_world__" or specific CDP evaluation patterns.
+ * Element.prototype.querySelector/querySelectorAll to capture stack traces
+ * and detect Puppeteer-specific patterns.
  *
- * Lifecycle:
- * 1. install() — patches prototypes, starts safety timeout
- * 2. getState() — snapshots current detection state
- * 3. restore() — restores original prototypes (idempotent)
- * 4. Safety net: auto-restores after 60s if restore() is never called
+ * Standalone lifecycle (no React dependency):
+ *   1. setupPuppeteerDetector() — patches prototypes, starts safety timeout
+ *   2. snapshot()               — returns current detection state
+ *   3. destroy()                — restores original prototypes, clears singleton
+ *   4. Safety net               — auto-restores prototypes after timeout (default 60s)
  */
 
-const SAFETY_TIMEOUT_MS = 60_000;
-const PUPPETEER_PATTERNS = [
-  "__puppeteer_utility_world__",
-  "pptr:",
-  "ExecutionContext._evaluateInternal",
+import type { PuppeteerDetection } from "../types";
+
+export type { PuppeteerDetection };
+
+export interface PuppeteerDetectorAPI {
+  snapshot: () => PuppeteerDetection;
+  destroy: () => void;
+}
+
+type Label =
+  | "document.querySelector"
+  | "document.querySelectorAll"
+  | "element.querySelector"
+  | "element.querySelectorAll";
+
+interface QSMatch {
+  ts: number;
+  label: Label;
+  selector: string;
+  stack: string;
+  patterns: string[];
+}
+
+/** Stack-trace patterns that indicate Puppeteer automation. */
+const PUPPETEER_STACK_PATTERNS: RegExp[] = [
+  /\bpptr\b/i,
+  /__puppeteer/i,
+  /puppeteer(?:_| )evaluation(?:_| )script/i,
+  /ExecutionContext\._evaluate/i,
+  /FrameManager\./i,
 ];
 
-interface PuppeteerState {
-  puppeteerDetected: boolean;
-  puppeteerDocumentNotAvailable: boolean;
-}
+const DEFAULT_SAFETY_TIMEOUT_MS = 60_000;
 
-interface PuppeteerDetector {
-  getState(): PuppeteerState;
-  restore(): void;
-}
+let singleton: PuppeteerDetectorAPI | undefined;
 
-export function installPuppeteerDetector(): PuppeteerDetector {
-  let detected = false;
-  let documentNotAvailable = false;
-  let installed = true;
-
-  // Check if document is available (can be false in some puppeteer contexts)
-  try {
-    if (typeof document === "undefined" || !document.querySelector) {
-      documentNotAvailable = true;
-      return {
-        getState: () => ({
-          puppeteerDetected: detected,
-          puppeteerDocumentNotAvailable: documentNotAvailable,
-        }),
-        restore: () => {},
-      };
-    }
-  } catch {
-    documentNotAvailable = true;
-    return {
-      getState: () => ({
-        puppeteerDetected: true,
-        puppeteerDocumentNotAvailable: true,
-      }),
-      restore: () => {},
-    };
+/**
+ * Install the puppeteer querySelector trap.
+ *
+ * Returns a `PuppeteerDetectorAPI` handle with `snapshot()` to read detection
+ * state and `destroy()` to restore original prototypes. The detector is a
+ * singleton — repeated calls return the same instance.
+ *
+ * A safety timeout (default 60 s) automatically restores prototypes if
+ * `destroy()` is never called.
+ */
+export function setupPuppeteerDetector(
+  safetyTimeoutMs: number = DEFAULT_SAFETY_TIMEOUT_MS,
+): PuppeteerDetectorAPI {
+  if (singleton) {
+    return singleton;
   }
 
-  const origDocQs = Document.prototype.querySelector;
-  const origDocQsa = Document.prototype.querySelectorAll;
-  const origElQs = Element.prototype.querySelector;
-  const origElQsa = Element.prototype.querySelectorAll;
-
-  function checkStack(): void {
-    if (detected || !installed) return;
-    try {
-      const stack = new Error().stack || "";
-      for (const pattern of PUPPETEER_PATTERNS) {
-        if (stack.includes(pattern)) {
-          detected = true;
-          restore();
-          return;
+  // SSR / non-browser guard
+  if (
+    typeof globalThis === "undefined" ||
+    typeof globalThis.Document === "undefined" ||
+    typeof globalThis.Element === "undefined"
+  ) {
+    const api: PuppeteerDetectorAPI = {
+      snapshot: () => ({ detected: false, documentNotAvailable: true }),
+      destroy: () => {
+        if (singleton === api) {
+          singleton = undefined;
         }
-      }
-    } catch {
-      // Ignore errors in stack inspection
+      },
+    };
+    singleton = api;
+    return api;
+  }
+
+  const matches: QSMatch[] = [];
+
+  // Capture original prototypes before patching
+  const origDocQS = Document.prototype.querySelector;
+  const origDocQSA = Document.prototype.querySelectorAll;
+  const origElemQS = Element.prototype.querySelector;
+  const origElemQSA = Element.prototype.querySelectorAll;
+
+  let _installed = false;
+  let _safetyTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const restore = () => {
+    if (!_installed) {
+      return;
     }
+    _installed = false;
+
+    if (_safetyTimer !== undefined) {
+      clearTimeout(_safetyTimer);
+      _safetyTimer = undefined;
+    }
+
+    Object.defineProperty(Document.prototype, "querySelector", {
+      value: origDocQS,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(Document.prototype, "querySelectorAll", {
+      value: origDocQSA,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(Element.prototype, "querySelector", {
+      value: origElemQS,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(Element.prototype, "querySelectorAll", {
+      value: origElemQSA,
+      configurable: true,
+      writable: true,
+    });
+  };
+
+  const captureStack = (): string => {
+    try {
+      throw new Error("__qs_pptr_probe__");
+    } catch (err) {
+      return err instanceof Error && typeof err.stack === "string"
+        ? err.stack
+        : "";
+    }
+  };
+
+  const makeWrapper = <This, R>(
+    orig: (this: This, selector: string) => R,
+    label: Label,
+  ) =>
+    function wrapped(this: This, selector: string): R {
+      const stack = captureStack();
+      const hits = PUPPETEER_STACK_PATTERNS.filter((rx) => rx.test(stack)).map(
+        (rx) => rx.source,
+      );
+      if (hits.length > 0) {
+        matches.push({
+          ts: Date.now(),
+          label,
+          selector,
+          stack,
+          patterns: hits,
+        });
+        restore(); // auto-restore on first detection
+      }
+      return orig.call(this, selector);
+    };
+
+  // Install patches
+  try {
+    Object.defineProperty(Document.prototype, "querySelector", {
+      value: makeWrapper<Document, Element | null>(
+        origDocQS,
+        "document.querySelector",
+      ),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(Document.prototype, "querySelectorAll", {
+      value: makeWrapper<Document, NodeListOf<Element>>(
+        origDocQSA,
+        "document.querySelectorAll",
+      ),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(Element.prototype, "querySelector", {
+      value: makeWrapper<Element, Element | null>(
+        origElemQS,
+        "element.querySelector",
+      ),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(Element.prototype, "querySelectorAll", {
+      value: makeWrapper<Element, NodeListOf<Element>>(
+        origElemQSA,
+        "element.querySelectorAll",
+      ),
+      configurable: true,
+      writable: true,
+    });
+    _installed = true;
+  } catch {
+    // Silently fail if prototypes are frozen or non-configurable
   }
 
-  Document.prototype.querySelector = function (...args: [string]) {
-    checkStack();
-    return origDocQs.apply(this, args);
+  const snapshot = (): PuppeteerDetection => ({
+    detected: matches.length > 0,
+    documentNotAvailable: false,
+  });
+
+  const destroy = () => {
+    restore();
+    // Only clear the singleton if it still refers to this instance.
+    // A stale handle must not clobber a newer detector's singleton.
+    if (singleton === api) {
+      singleton = undefined;
+    }
   };
 
-  Document.prototype.querySelectorAll = function (...args: [string]) {
-    checkStack();
-    return origDocQsa.apply(this, args);
-  };
+  const api: PuppeteerDetectorAPI = { snapshot, destroy };
 
-  Element.prototype.querySelector = function (...args: [string]) {
-    checkStack();
-    return origElQs.apply(this, args);
-  };
-
-  Element.prototype.querySelectorAll = function (...args: [string]) {
-    checkStack();
-    return origElQsa.apply(this, args);
-  };
-
-  // Safety net: auto-restore after timeout
-  const timer = setTimeout(() => restore(), SAFETY_TIMEOUT_MS);
-
-  function restore(): void {
-    if (!installed) return;
-    installed = false;
-    clearTimeout(timer);
-    Document.prototype.querySelector = origDocQs;
-    Document.prototype.querySelectorAll = origDocQsa;
-    Element.prototype.querySelector = origElQs;
-    Element.prototype.querySelectorAll = origElQsa;
+  // Safety timeout: fully tear down if destroy() is never called.
+  if (_installed && safetyTimeoutMs > 0) {
+    _safetyTimer = setTimeout(() => {
+      restore();
+      if (singleton === api) {
+        singleton = undefined;
+      }
+    }, safetyTimeoutMs);
   }
 
-  return {
-    getState: () => ({
-      puppeteerDetected: detected,
-      puppeteerDocumentNotAvailable: documentNotAvailable,
-    }),
-    restore,
-  };
+  singleton = api;
+  return api;
+}
+
+/**
+ * Visible for testing only. Resets the singleton so a fresh detector can be
+ * installed in the next call to `setupPuppeteerDetector()`.
+ * @internal
+ */
+export function _resetDetectorSingleton(): void {
+  if (singleton) {
+    singleton.destroy();
+  }
 }

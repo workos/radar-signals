@@ -9,12 +9,17 @@
 import { ulid } from "ulidx";
 import type { RadarInitOptions, Signals } from "./types";
 import { collectSignals } from "./collector/index";
-import { installPuppeteerDetector } from "./collector/puppeteer-detector";
+import {
+  setupPuppeteerDetector,
+  type PuppeteerDetectorAPI,
+} from "./collector/puppeteer-detector";
 import { runWebGLWorker } from "./worker/inline-worker";
 import { postSignals, beaconSignals } from "./api/client";
 
 export { collectSignals } from "./collector/index";
 export type { CollectSignalsOptions } from "./collector/index";
+export { setupPuppeteerDetector } from "./collector/puppeteer-detector";
+export type { PuppeteerDetectorAPI } from "./collector/puppeteer-detector";
 export type {
   RadarInitOptions,
   Signals,
@@ -22,6 +27,7 @@ export type {
   Screen,
   MinimalSurface,
   MediaPreferences,
+  PuppeteerDetection,
 } from "./types";
 
 /** Current state of the Radar instance. */
@@ -38,13 +44,13 @@ export class WorkOSRadar {
   private state: RadarState = { phase: "collecting" };
   private completionPromise: Promise<void>;
   private resolveCompletion!: () => void;
-  private puppeteerDetector: ReturnType<typeof installPuppeteerDetector>;
+  private puppeteerDetector: PuppeteerDetectorAPI;
   private destroyed = false;
 
   private constructor(options: RadarInitOptions) {
     this.options = { clientId: options.clientId, apiUrl: options.apiUrl };
     this.signalsId = ulid();
-    this.puppeteerDetector = installPuppeteerDetector();
+    this.puppeteerDetector = setupPuppeteerDetector();
 
     this.completionPromise = new Promise<void>((resolve) => {
       this.resolveCompletion = resolve;
@@ -115,7 +121,7 @@ export class WorkOSRadar {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
-    this.puppeteerDetector.restore();
+    this.puppeteerDetector.destroy();
     // Resolve any pending waiters
     this.resolveCompletion();
   }
@@ -131,8 +137,8 @@ export class WorkOSRadar {
       const signals = await collectSignals({
         runWorker: () => runWebGLWorker(),
         puppeteerSnapshot: () => ({
-          detected: detector.getState().puppeteerDetected,
-          documentNotAvailable: detector.getState().puppeteerDocumentNotAvailable,
+          detected: detector.snapshot().detected,
+          documentNotAvailable: detector.snapshot().documentNotAvailable,
         }),
       });
 
