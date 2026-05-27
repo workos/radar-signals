@@ -6,6 +6,13 @@
  * allowlists — payloads with unexpected keys are flagged.
  */
 
+export interface PuppeteerDetection {
+  /** Whether Puppeteer was detected via querySelector stack-trace analysis. */
+  detected: boolean;
+  /** True when Document/Element globals are unavailable (e.g. SSR). */
+  documentNotAvailable: boolean;
+}
+
 export type MediaPreferences = {
   colorScheme?: string;
   reducedMotion?: boolean;

@@ -1,93 +1,95 @@
-import type { RadarInitOptions } from "../types";
+/**
+ * API client for posting signals to the WorkOS /radar/signals endpoint.
+ *
+ * Design principles:
+ * - Single POST with fetch(), no retries
+ * - Fail-open: returns signalsId even if API call fails
+ * - beaconSignals uses fetch with keepalive for page-unload scenarios
+ */
 
-export const DEFAULT_API_URL = "https://api.workos.com";
-const SIGNALS_PATH = "/radar/signals";
+import type { Signals } from "../types";
 
-export interface SignalsPayload {
+const DEFAULT_API_URL = "https://api.workos.com";
+
+export interface PostSignalsParams {
   id: string;
-  signals: Record<string, unknown>;
+  signals: Signals;
+  clientId: string;
+  apiUrl?: string;
 }
 
-export type ClientOptions = Pick<RadarInitOptions, "clientId" | "apiUrl">;
-
-export interface SubmitResult {
-  signalsId: string;
-  /**
-   * For {@link submitSignals}: `true` when the server responded with 2xx.
-   * For {@link beaconSignals}: `true` when the request was dispatched
-   * (fire-and-forget — the server response is not awaited).
-   */
-  submitted: boolean;
-}
-
-function buildUrl(options: ClientOptions): string {
-  const base = (options.apiUrl ?? DEFAULT_API_URL).replace(/\/+$/, "");
-  return `${base}${SIGNALS_PATH}`;
-}
-
-function buildHeaders(clientId: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${clientId}`,
-    "Content-Type": "application/json",
-  };
+export interface PostResult {
+  success: boolean;
 }
 
 /**
- * Submit signals to the WorkOS Radar API via fetch.
+ * POST signals to the WorkOS API.
  *
- * Fail-open: always returns the signalsId, even if the request fails.
- * No retries — a single POST attempt.
+ * Fail-open: always resolves (never throws). Returns `{ success: true }`
+ * only when the server responds with 2xx.
  */
-export async function submitSignals(
-  payload: SignalsPayload,
-  options: ClientOptions,
-): Promise<SubmitResult> {
-  const url = buildUrl(options);
+export async function postSignals(
+  params: PostSignalsParams,
+): Promise<PostResult> {
+  const { id, signals, clientId, apiUrl = DEFAULT_API_URL } = params;
+  const url = `${apiUrl}/radar/signals`;
+
+  const body = JSON.stringify({
+    id,
+    signals: { ...signals, submittedAtMs: Date.now() },
+  });
 
   try {
     const response = await fetch(url, {
       method: "POST",
-      headers: buildHeaders(options.clientId),
-      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${clientId}`,
+      },
+      body,
     });
 
-    return { signalsId: payload.id, submitted: response.ok };
+    return { success: response.ok };
   } catch {
-    return { signalsId: payload.id, submitted: false };
+    return { success: false };
   }
 }
 
 /**
- * Submit signals via fetch with `keepalive` for page-unload scenarios.
+ * Send signals via fetch with `keepalive` for page-unload / redirect
+ * scenarios. Fire-and-forget: the request is dispatched and the function
+ * returns immediately without awaiting a server response.
  *
- * This is fire-and-forget: the request is dispatched and the function
- * returns immediately without awaiting a server response. The `submitted`
- * field indicates whether the request was dispatched, not whether the
- * server accepted it.
- *
- * Fail-open: always returns the signalsId.
+ * Returns `true` when the request was dispatched, `false` otherwise.
+ * Fail-open: never throws.
  */
-export function beaconSignals(
-  payload: SignalsPayload,
-  options: ClientOptions,
-): SubmitResult {
-  const url = buildUrl(options);
-  const body = JSON.stringify(payload);
+export function beaconSignals(params: PostSignalsParams): boolean {
+  const { id, signals, clientId, apiUrl = DEFAULT_API_URL } = params;
+  const url = `${apiUrl}/radar/signals`;
+
+  const body = JSON.stringify({
+    id,
+    signals: { ...signals, submittedAtMs: Date.now() },
+  });
 
   try {
     if (typeof fetch === "function") {
       fetch(url, {
         method: "POST",
-        headers: buildHeaders(options.clientId),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${clientId}`,
+        },
         body,
         keepalive: true,
-      }).catch(() => {});
-
-      return { signalsId: payload.id, submitted: true };
+      }).catch(() => {
+        // Intentionally swallowed — fail-open
+      });
+      return true;
     }
 
-    return { signalsId: payload.id, submitted: false };
+    return false;
   } catch {
-    return { signalsId: payload.id, submitted: false };
+    return false;
   }
 }
