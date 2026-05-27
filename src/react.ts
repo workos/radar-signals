@@ -1,4 +1,8 @@
-export { useRadarSignals } from './use-radar-signals';
+export {
+  RadarSignalsProvider,
+  useRadarToken,
+  useRadarSignals,
+} from "./react/index";
 export type {
   Signals,
   SignalsWorker,
@@ -6,4 +10,4 @@ export type {
   MinimalSurface,
   MediaPreferences,
   RadarInitOptions,
-} from './types';
+} from "./types";
