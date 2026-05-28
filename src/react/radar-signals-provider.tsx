@@ -20,21 +20,30 @@ export function RadarSignalsProvider({
   children,
   ...options
 }: RadarInitOptions & { children: React.ReactNode }) {
-  // Lazy-initialize on first render so the instance is available
+  // Eagerly initialize during render so the instance is available
   // before any child effects fire (child effects run before parent effects).
+  // Re-initialize when clientId changes.
   const radarRef = useRef<WorkOSRadar | null>(null);
-  if (radarRef.current === null) {
+  const clientIdRef = useRef(options.clientId);
+
+  if (
+    radarRef.current === null ||
+    clientIdRef.current !== options.clientId
+  ) {
     radarRef.current = WorkOSRadar.init(options);
+    clientIdRef.current = options.clientId;
   }
 
   useEffect(() => {
-    // Capture the instance that was created during render.
-    // On Strict Mode remount, radarRef.current was already re-created
-    // by the lazy init above, so just capture it for cleanup.
     const radar = radarRef.current!;
     return () => {
       radar.destroy();
-      radarRef.current = null;
+      // Only null the ref on true unmount. When clientId changes,
+      // the render phase already replaced radarRef.current with a
+      // new instance — don't clobber it.
+      if (radarRef.current === radar) {
+        radarRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.clientId]);

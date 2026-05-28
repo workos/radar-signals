@@ -7,18 +7,29 @@ import type { RadarInitOptions } from "../types";
  * Initializes Radar eagerly during render and cleans up on unmount.
  */
 export function useRadarSignals(options: RadarInitOptions) {
-  // Lazy-initialize on first render so the instance is available
-  // immediately (before any effects fire).
+  // Eagerly initialize during render so the instance is available
+  // immediately (before any effects fire). Re-initialize when clientId changes.
   const radarRef = useRef<WorkOSRadar | null>(null);
-  if (radarRef.current === null) {
+  const clientIdRef = useRef(options.clientId);
+
+  if (
+    radarRef.current === null ||
+    clientIdRef.current !== options.clientId
+  ) {
     radarRef.current = WorkOSRadar.init(options);
+    clientIdRef.current = options.clientId;
   }
 
   useEffect(() => {
     const radar = radarRef.current!;
     return () => {
       radar.destroy();
-      radarRef.current = null;
+      // Only null the ref on true unmount. When clientId changes,
+      // the render phase already replaced radarRef.current with a
+      // new instance — don't clobber it.
+      if (radarRef.current === radar) {
+        radarRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.clientId]);

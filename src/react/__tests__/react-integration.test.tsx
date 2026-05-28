@@ -110,6 +110,46 @@ describe("RadarSignalsProvider + useRadarToken", () => {
     expect(token.length).toBe(26); // ULID length
   });
 
+  it("re-initializes when clientId changes", () => {
+    const destroyFns: ReturnType<typeof vi.fn>[] = [];
+    const initSpy = vi
+      .spyOn(WorkOSRadar, "init")
+      .mockImplementation(() => {
+        const destroy = vi.fn();
+        destroyFns.push(destroy);
+        return {
+          getToken: vi.fn().mockResolvedValue("mock-token"),
+          getTokenSync: vi.fn().mockReturnValue("mock-token"),
+          destroy,
+        } as unknown as WorkOSRadar;
+      });
+
+    let clientId = "client_old";
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <RadarSignalsProvider clientId={clientId}>
+        {children}
+      </RadarSignalsProvider>
+    );
+
+    const { result, rerender } = renderHook(() => useRadarToken(), {
+      wrapper,
+    });
+
+    expect(initSpy).toHaveBeenCalledWith({ clientId: "client_old" });
+    expect(initSpy).toHaveBeenCalledTimes(1);
+
+    clientId = "client_new";
+    rerender();
+
+    expect(initSpy).toHaveBeenCalledWith({ clientId: "client_new" });
+    expect(initSpy).toHaveBeenCalledTimes(2);
+    // Old instance should be destroyed by effect cleanup
+    expect(destroyFns[0]).toHaveBeenCalledOnce();
+    // New instance should still be functional
+    expect(result.current.getToken).toBeTypeOf("function");
+    expect(result.current.getTokenSync).toBeTypeOf("function");
+  });
+
   it("maintains stable function references across re-renders", () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <RadarSignalsProvider clientId="client_test_123">
@@ -175,6 +215,38 @@ describe("useRadarSignals (standalone hook)", () => {
     const token = result.current.getTokenSync();
     expect(token).toBeTypeOf("string");
     expect(token.length).toBe(26); // ULID length
+  });
+
+  it("re-initializes when clientId changes", () => {
+    const destroyFns: ReturnType<typeof vi.fn>[] = [];
+    const initSpy = vi
+      .spyOn(WorkOSRadar, "init")
+      .mockImplementation(() => {
+        const destroy = vi.fn();
+        destroyFns.push(destroy);
+        return {
+          getToken: vi.fn().mockResolvedValue("mock-token"),
+          getTokenSync: vi.fn().mockReturnValue("mock-token"),
+          destroy,
+        } as unknown as WorkOSRadar;
+      });
+
+    let clientId = "client_old";
+    const { result, rerender } = renderHook(() =>
+      useRadarSignals({ clientId }),
+    );
+
+    expect(initSpy).toHaveBeenCalledWith({ clientId: "client_old" });
+    expect(initSpy).toHaveBeenCalledTimes(1);
+
+    clientId = "client_new";
+    rerender();
+
+    expect(initSpy).toHaveBeenCalledWith({ clientId: "client_new" });
+    expect(initSpy).toHaveBeenCalledTimes(2);
+    expect(destroyFns[0]).toHaveBeenCalledOnce();
+    expect(result.current.getToken).toBeTypeOf("function");
+    expect(result.current.getTokenSync).toBeTypeOf("function");
   });
 
   it("maintains stable function references across re-renders", () => {
