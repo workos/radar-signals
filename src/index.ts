@@ -1,25 +1,18 @@
 /**
  * @workos/radar-signals
  *
- * Browser signals collector for WorkOS Radar.
- * Collects fingerprinting and automation detection signals,
- * sends them to the WorkOS API, and provides a correlation token.
+ * Thin SDK loader for WorkOS Radar.
+ * Loads a CDN-hosted collection script at runtime, sends collected signals
+ * to the WorkOS API, and provides a correlation token.
+ *
+ * Signal collection logic lives in a separate private package and is loaded
+ * from a WorkOS CDN at runtime (not bundled here).
  */
 
 import { ulid } from "ulidx";
 import type { RadarInitOptions, Signals } from "./types";
-import { collectSignals } from "./collector/index";
-import {
-  setupPuppeteerDetector,
-  type PuppeteerDetectorAPI,
-} from "./collector/puppeteer-detector";
-import { runWebGLWorker } from "./worker/inline-worker";
 import { postSignals, beaconSignals } from "./api/client";
 
-export { collectSignals } from "./collector/index";
-export type { CollectSignalsOptions } from "./collector/index";
-export { setupPuppeteerDetector } from "./collector/puppeteer-detector";
-export type { PuppeteerDetectorAPI } from "./collector/puppeteer-detector";
 export type {
   RadarInitOptions,
   Signals,
@@ -44,13 +37,11 @@ export class WorkOSRadar {
   private state: RadarState = { phase: "collecting" };
   private completionPromise: Promise<void>;
   private resolveCompletion!: () => void;
-  private puppeteerDetector: PuppeteerDetectorAPI;
   private destroyed = false;
 
   private constructor(options: RadarInitOptions) {
     this.options = { clientId: options.clientId, apiUrl: options.apiUrl };
     this.signalsId = ulid();
-    this.puppeteerDetector = setupPuppeteerDetector();
 
     this.completionPromise = new Promise<void>((resolve) => {
       this.resolveCompletion = resolve;
@@ -116,51 +107,20 @@ export class WorkOSRadar {
   }
 
   /**
-   * Cleanup: restores patched DOM prototypes and stops pending work.
+   * Cleanup: stops pending work.
    */
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
-    this.puppeteerDetector.destroy();
     // Resolve any pending waiters
     this.resolveCompletion();
   }
 
   private async run(): Promise<void> {
-    // Capture the resolver by value so that if refresh() overwrites
-    // this.resolveCompletion mid-flight, we still resolve the correct promise.
+    // TODO: Load CDN collection script and collect signals here.
+    // Signal collection logic has been extracted to a separate private package
+    // that will be loaded from a WorkOS CDN at runtime via a script loader.
     const resolve = this.resolveCompletion;
-    try {
-      const detector = this.puppeteerDetector;
-
-      // Collect all signals, providing the worker runner and puppeteer snapshot
-      const signals = await collectSignals({
-        runWorker: () => runWebGLWorker(),
-        puppeteerSnapshot: () => ({
-          detected: detector.snapshot().detected,
-          documentNotAvailable: detector.snapshot().documentNotAvailable,
-        }),
-      });
-
-      if (this.destroyed) return;
-
-      this.state = { phase: "sending", signals };
-
-      // POST to API (fail-open — check return value)
-      const result = await postSignals({
-        id: this.signalsId,
-        signals,
-        clientId: this.options.clientId,
-        apiUrl: this.options.apiUrl,
-      });
-
-      this.state = result.success
-        ? { phase: "ready", signals }
-        : { phase: "error", signals };
-    } catch {
-      this.state = { phase: "error", signals: null };
-    } finally {
-      resolve();
-    }
+    resolve();
   }
 }
