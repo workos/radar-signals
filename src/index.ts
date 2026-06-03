@@ -11,7 +11,7 @@
 
 import { ulid } from "ulidx";
 import type { RadarInitOptions, Signals } from "./types";
-import { postSignals, beaconSignals } from "./api/client";
+import { beaconSignals } from "./api/client";
 
 export type {
   RadarInitOptions,
