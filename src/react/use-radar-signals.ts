@@ -15,9 +15,7 @@ export function useRadarSignals(options: RadarInitOptions) {
   if (initRef.current === null) {
     initRef.current = loadCollectorsScript({ clientId: options.clientId })
       .then((api) => {
-        if (initRef.current !== null) {
-          radarRef.current = api;
-        }
+        radarRef.current = api;
       })
       .catch(() => {
         // Fail open: if the script can't load, getToken returns ""
@@ -25,6 +23,16 @@ export function useRadarSignals(options: RadarInitOptions) {
   }
 
   useEffect(() => {
+    // Re-initialize after cleanup (handles StrictMode remount and
+    // clientId changes — both null the refs before this runs).
+    if (initRef.current === null) {
+      initRef.current = loadCollectorsScript({ clientId: options.clientId })
+        .then((api) => {
+          radarRef.current = api;
+        })
+        .catch(() => {});
+    }
+
     return () => {
       radarRef.current = null;
       initRef.current = null;

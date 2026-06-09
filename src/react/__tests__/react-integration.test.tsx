@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import React from "react";
 
-const MOCK_TOKEN = "01ARYZ6S41TSV4RRFFQ69G5FAV";
-
 vi.mock("../load-script", () => {
   const token = "01ARYZ6S41TSV4RRFFQ69G5FAV";
 

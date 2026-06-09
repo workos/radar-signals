@@ -54,6 +54,7 @@ export function loadCollectorsScript(config: {
 
   scriptPromise = new Promise<RadarScriptAPI>((resolve, reject) => {
     if (typeof window === "undefined" || typeof document === "undefined") {
+      scriptPromise = null;
       reject(new Error("Radar collectors require a browser environment"));
       return;
     }
@@ -69,6 +70,7 @@ export function loadCollectorsScript(config: {
     const script = document.createElement("script");
     script.src = COLLECTORS_SCRIPT_URL;
     script.async = true;
+    script.crossOrigin = "anonymous";
 
     script.onload = () => {
       const api = (window as WindowWithRadar).WorkOSRadar;
