@@ -1,19 +1,30 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook, act } from "@testing-library/react";
 import React from "react";
+
+vi.mock("../load-script", () => {
+  const token = "01ARYZ6S41TSV4RRFFQ69G5FAV";
+  const destroy = vi.fn();
+  const getToken = vi.fn().mockResolvedValue(token);
+  const getTokenSync = vi.fn().mockReturnValue(token);
+  const init = vi.fn().mockReturnValue({
+    getToken,
+    getTokenSync,
+    refresh: vi.fn().mockResolvedValue(token),
+    destroy,
+  });
+
+  return {
+    loadCollectorsScript: vi.fn().mockResolvedValue({ init }),
+  };
+});
+
+import { loadCollectorsScript } from "../load-script";
 import { RadarSignalsProvider, useRadarToken } from "../radar-signals-provider";
 import { useRadarSignals } from "../use-radar-signals";
 
-// Mock fetch globally
 beforeEach(() => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({ ok: true }),
-  );
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
+  vi.clearAllMocks();
 });
 
 describe("RadarSignalsProvider + useRadarToken", () => {
@@ -46,6 +57,25 @@ describe("RadarSignalsProvider + useRadarToken", () => {
 
     expect(token).toBeTypeOf("string");
     expect(token!.length).toBe(26);
+  });
+
+  it("initializes WorkOSRadar with the provided options", async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <RadarSignalsProvider clientId="client_test_456" apiUrl="https://custom.api.com">
+        {children}
+      </RadarSignalsProvider>
+    );
+
+    renderHook(() => useRadarToken(), { wrapper });
+
+    // Wait for the async init to complete
+    await act(async () => {});
+
+    const { init } = await vi.mocked(loadCollectorsScript)();
+    expect(init).toHaveBeenCalledWith({
+      clientId: "client_test_456",
+      apiUrl: "https://custom.api.com",
+    });
   });
 
   it("throws when useRadarToken is used outside provider", () => {
