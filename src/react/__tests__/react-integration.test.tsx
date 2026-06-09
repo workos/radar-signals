@@ -2,20 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import React from "react";
 
+const MOCK_TOKEN = "01ARYZ6S41TSV4RRFFQ69G5FAV";
+
 vi.mock("../load-script", () => {
   const token = "01ARYZ6S41TSV4RRFFQ69G5FAV";
-  const destroy = vi.fn();
-  const getToken = vi.fn().mockResolvedValue(token);
-  const getTokenSync = vi.fn().mockReturnValue(token);
-  const init = vi.fn().mockReturnValue({
-    getToken,
-    getTokenSync,
-    refresh: vi.fn().mockResolvedValue(token),
-    destroy,
-  });
 
   return {
-    loadCollectorsScript: vi.fn().mockResolvedValue({ init }),
+    loadCollectorsScript: vi.fn().mockResolvedValue({
+      getToken: vi.fn().mockResolvedValue(token),
+      getTokenSync: vi.fn().mockReturnValue(token),
+    }),
   };
 });
 
@@ -59,22 +55,19 @@ describe("RadarSignalsProvider + useRadarToken", () => {
     expect(token!.length).toBe(26);
   });
 
-  it("initializes WorkOSRadar with the provided options", async () => {
+  it("passes clientId to loadCollectorsScript", async () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <RadarSignalsProvider clientId="client_test_456" apiUrl="https://custom.api.com">
+      <RadarSignalsProvider clientId="client_test_456">
         {children}
       </RadarSignalsProvider>
     );
 
     renderHook(() => useRadarToken(), { wrapper });
 
-    // Wait for the async init to complete
     await act(async () => {});
 
-    const { init } = await vi.mocked(loadCollectorsScript)();
-    expect(init).toHaveBeenCalledWith({
+    expect(vi.mocked(loadCollectorsScript)).toHaveBeenCalledWith({
       clientId: "client_test_456",
-      apiUrl: "https://custom.api.com",
     });
   });
 
@@ -107,6 +100,18 @@ describe("useRadarSignals (standalone hook)", () => {
 
     expect(token).toBeTypeOf("string");
     expect(token!.length).toBe(26);
+  });
+
+  it("passes clientId to loadCollectorsScript", async () => {
+    renderHook(() =>
+      useRadarSignals({ clientId: "client_test_789" }),
+    );
+
+    await act(async () => {});
+
+    expect(vi.mocked(loadCollectorsScript)).toHaveBeenCalledWith({
+      clientId: "client_test_789",
+    });
   });
 
   it("maintains stable function references across re-renders", () => {

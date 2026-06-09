@@ -1,22 +1,22 @@
 import { useRef, useEffect, useCallback } from "react";
 import type { RadarInitOptions } from "../types";
-import { loadCollectorsScript, type RadarInstance } from "./load-script";
+import { loadCollectorsScript, type RadarScriptAPI } from "./load-script";
 
 /**
  * Standalone hook (no context needed) for signal collection.
- * Loads the collectors script from the CDN and initializes Radar.
- * Cleans up on unmount.
+ * Loads the collectors script from the CDN — the script self-initializes,
+ * collects signals, and posts them to the API on its own.
  */
 export function useRadarSignals(options: RadarInitOptions) {
-  const radarRef = useRef<RadarInstance | null>(null);
+  const radarRef = useRef<RadarScriptAPI | null>(null);
   const initRef = useRef<Promise<void> | null>(null);
 
-  // Eagerly start loading + initialization during render.
+  // Eagerly start loading during render.
   if (initRef.current === null) {
-    initRef.current = loadCollectorsScript()
-      .then((Radar) => {
-        if (initRef.current !== null && radarRef.current === null) {
-          radarRef.current = Radar.init(options);
+    initRef.current = loadCollectorsScript({ clientId: options.clientId })
+      .then((api) => {
+        if (initRef.current !== null) {
+          radarRef.current = api;
         }
       })
       .catch(() => {
@@ -26,7 +26,6 @@ export function useRadarSignals(options: RadarInitOptions) {
 
   useEffect(() => {
     return () => {
-      radarRef.current?.destroy();
       radarRef.current = null;
       initRef.current = null;
     };

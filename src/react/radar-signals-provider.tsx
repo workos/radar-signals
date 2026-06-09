@@ -7,7 +7,7 @@ import {
   useMemo,
 } from "react";
 import type { RadarInitOptions } from "../types";
-import { loadCollectorsScript, type RadarInstance } from "./load-script";
+import { loadCollectorsScript, type RadarScriptAPI } from "./load-script";
 
 interface RadarContextValue {
   getToken: () => Promise<string>;
@@ -20,19 +20,17 @@ export function RadarSignalsProvider({
   children,
   ...options
 }: RadarInitOptions & { children: React.ReactNode }) {
-  const radarRef = useRef<RadarInstance | null>(null);
+  const radarRef = useRef<RadarScriptAPI | null>(null);
   const initRef = useRef<Promise<void> | null>(null);
 
-  // Eagerly start loading the collectors script + initialization during
-  // render so signals begin collecting as early as possible. The script
-  // is cached globally, so subsequent mounts resolve near-instantly.
+  // Eagerly load the collectors script during render.
+  // The script self-initializes — it reads window.__WorkOSRadarConfig,
+  // collects signals, and posts them to the API on its own.
   if (initRef.current === null) {
-    initRef.current = loadCollectorsScript()
-      .then((Radar) => {
-        // Guard: only init if this mount cycle is still active.
-        // After cleanup, initRef is nulled — prevents orphan instances.
-        if (initRef.current !== null && radarRef.current === null) {
-          radarRef.current = Radar.init(options);
+    initRef.current = loadCollectorsScript({ clientId: options.clientId })
+      .then((api) => {
+        if (initRef.current !== null) {
+          radarRef.current = api;
         }
       })
       .catch(() => {
@@ -42,7 +40,6 @@ export function RadarSignalsProvider({
 
   useEffect(() => {
     return () => {
-      radarRef.current?.destroy();
       radarRef.current = null;
       initRef.current = null;
     };
