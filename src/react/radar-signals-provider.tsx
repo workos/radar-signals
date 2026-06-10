@@ -6,8 +6,8 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { WorkOSRadar } from "../index";
 import type { RadarInitOptions } from "../types";
+import { loadCollectorsScript, type RadarScriptAPI } from "./load-script";
 
 interface RadarContextValue {
   getToken: () => Promise<string>;
@@ -20,32 +20,48 @@ export function RadarSignalsProvider({
   children,
   ...options
 }: RadarInitOptions & { children: React.ReactNode }) {
-  // Lazy-initialize on first render so the instance is available
-  // before any child effects fire (child effects run before parent effects).
-  const radarRef = useRef<WorkOSRadar | null>(null);
-  if (radarRef.current === null) {
-    radarRef.current = WorkOSRadar.init(options);
+  const radarRef = useRef<RadarScriptAPI | null>(null);
+  const initRef = useRef<Promise<void> | null>(null);
+
+  // Eagerly load the collectors script during render.
+  // The script self-initializes — it reads window.__WorkOSRadarConfig,
+  // collects signals, and posts them to the API on its own.
+  if (initRef.current === null) {
+    initRef.current = loadCollectorsScript(options)
+      .then((api) => {
+        radarRef.current = api;
+      })
+      .catch(() => {
+        // Fail open: if the script can't load, getToken returns ""
+      });
   }
 
   useEffect(() => {
-    // Capture the instance that was created during render.
-    // On Strict Mode remount, radarRef.current was already re-created
-    // by the lazy init above, so just capture it for cleanup.
-    const radar = radarRef.current!;
+    // Re-initialize after cleanup (handles StrictMode remount and
+    // clientId changes — both null the refs before this runs).
+    if (initRef.current === null) {
+      initRef.current = loadCollectorsScript(options)
+        .then((api) => {
+          radarRef.current = api;
+        })
+        .catch(() => {});
+    }
+
     return () => {
-      radar.destroy();
       radarRef.current = null;
+      initRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.clientId]);
 
-  const getToken = useCallback(
-    () => radarRef.current!.getToken(),
-    [],
-  );
+  const getToken = useCallback(async () => {
+    await initRef.current;
+    if (!radarRef.current) return "";
+    return radarRef.current.getToken();
+  }, []);
 
   const getTokenSync = useCallback(
-    () => radarRef.current!.getTokenSync(),
+    () => radarRef.current?.getTokenSync() ?? "",
     [],
   );
 
