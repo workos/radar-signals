@@ -13,7 +13,7 @@ export function useRadarSignals(options: RadarInitOptions) {
 
   // Eagerly start loading during render.
   if (initRef.current === null) {
-    initRef.current = loadCollectorsScript({ clientId: options.clientId })
+    initRef.current = loadCollectorsScript(options)
       .then((api) => {
         radarRef.current = api;
       })
@@ -26,7 +26,7 @@ export function useRadarSignals(options: RadarInitOptions) {
     // Re-initialize after cleanup (handles StrictMode remount and
     // clientId changes — both null the refs before this runs).
     if (initRef.current === null) {
-      initRef.current = loadCollectorsScript({ clientId: options.clientId })
+      initRef.current = loadCollectorsScript(options)
         .then((api) => {
           radarRef.current = api;
         })

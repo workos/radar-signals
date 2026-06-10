@@ -27,7 +27,7 @@ export function RadarSignalsProvider({
   // The script self-initializes — it reads window.__WorkOSRadarConfig,
   // collects signals, and posts them to the API on its own.
   if (initRef.current === null) {
-    initRef.current = loadCollectorsScript({ clientId: options.clientId })
+    initRef.current = loadCollectorsScript(options)
       .then((api) => {
         radarRef.current = api;
       })
@@ -40,7 +40,7 @@ export function RadarSignalsProvider({
     // Re-initialize after cleanup (handles StrictMode remount and
     // clientId changes — both null the refs before this runs).
     if (initRef.current === null) {
-      initRef.current = loadCollectorsScript({ clientId: options.clientId })
+      initRef.current = loadCollectorsScript(options)
         .then((api) => {
           radarRef.current = api;
         })

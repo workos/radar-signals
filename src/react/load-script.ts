@@ -19,6 +19,7 @@ export interface RadarScriptAPI {
 
 interface WorkOSRadarConfig {
   clientId: string;
+  apiUrl?: string;
 }
 
 type WindowWithRadar = Window &
@@ -42,12 +43,15 @@ let scriptPromise: Promise<RadarScriptAPI> | null = null;
  */
 export function loadCollectorsScript(config: {
   clientId: string;
+  apiUrl?: string;
 }): Promise<RadarScriptAPI> {
-  // Always update config so the script sees the latest clientId.
+  // Always update config so the script sees the latest values.
   if (typeof window !== "undefined") {
-    (window as WindowWithRadar).__WorkOSRadarConfig = {
-      clientId: config.clientId,
-    };
+    const radarConfig: WorkOSRadarConfig = { clientId: config.clientId };
+    if (config.apiUrl) {
+      radarConfig.apiUrl = config.apiUrl;
+    }
+    (window as WindowWithRadar).__WorkOSRadarConfig = radarConfig;
   }
 
   if (scriptPromise) return scriptPromise;
