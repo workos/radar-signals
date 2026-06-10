@@ -52,13 +52,15 @@ export function loadCollectorsScript(config: {
 
   if (scriptPromise) return scriptPromise;
 
-  scriptPromise = new Promise<RadarScriptAPI>((resolve, reject) => {
-    if (typeof window === "undefined" || typeof document === "undefined") {
-      scriptPromise = null;
-      reject(new Error("Radar collectors require a browser environment"));
-      return;
-    }
+  // SSR guard: reject without caching so subsequent calls can retry
+  // once a browser environment is available.
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return Promise.reject(
+      new Error("Radar collectors require a browser environment"),
+    );
+  }
 
+  scriptPromise = new Promise<RadarScriptAPI>((resolve, reject) => {
     // If the script was already loaded (e.g. via a manual <script> tag),
     // resolve immediately without injecting a duplicate.
     const existing = (window as WindowWithRadar).WorkOSRadar;
