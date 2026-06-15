@@ -1,6 +1,10 @@
 import { useRef, useEffect, useCallback } from "react";
 import type { RadarInitOptions } from "../types";
-import { loadCollectorsScript, type RadarScriptAPI } from "./load-script";
+import {
+  loadCollectorsScript,
+  getCollectorFromWindow,
+  type RadarScriptAPI,
+} from "./load-script";
 
 /**
  * Standalone hook (no context needed) for signal collection.
@@ -42,12 +46,16 @@ export function useRadarSignals(options: RadarInitOptions) {
 
   const getToken = useCallback(async () => {
     await initRef.current;
-    if (!radarRef.current) return "";
-    return radarRef.current.getToken();
+    const api = radarRef.current ?? getCollectorFromWindow();
+    if (!api) return "";
+    return api.getToken();
   }, []);
 
   const getTokenSync = useCallback(
-    () => radarRef.current?.getTokenSync() ?? "",
+    () =>
+      radarRef.current?.getTokenSync() ??
+      getCollectorFromWindow()?.getTokenSync() ??
+      "",
     [],
   );
 

@@ -11,7 +11,14 @@
 
 const COLLECTORS_SCRIPT_URL = "https://js.workos.com/radar/v1/collectors.js";
 
-/** API surface exposed by the collectors script on `window.WorkOSRadar`. */
+/** API surface exposed by the collectors script on `window.__WorkOSRadarCollector`. */
+interface RadarCollectorAPI {
+  collectSignals(): Promise<unknown>;
+  signalsId: string;
+  version: string;
+}
+
+/** Stable API surface returned to consumers of this module. */
 export interface RadarScriptAPI {
   getToken(): Promise<string>;
   getTokenSync(): string;
@@ -24,11 +31,32 @@ interface WorkOSRadarConfig {
 
 type WindowWithRadar = Window &
   typeof globalThis & {
-    WorkOSRadar?: RadarScriptAPI;
+    __WorkOSRadarCollector?: RadarCollectorAPI;
     __WorkOSRadarConfig?: WorkOSRadarConfig;
   };
 
 let scriptPromise: Promise<RadarScriptAPI> | null = null;
+
+function wrapCollector(collector: RadarCollectorAPI): RadarScriptAPI {
+  return {
+    getToken: async () => {
+      await collector.collectSignals();
+      return collector.signalsId;
+    },
+    getTokenSync: () => collector.signalsId,
+  };
+}
+
+/**
+ * Direct fallback: read `window.__WorkOSRadarCollector` and wrap it.
+ * Useful when the promise-based flow loses the reference (e.g. StrictMode).
+ */
+export function getCollectorFromWindow(): RadarScriptAPI | null {
+  if (typeof window === "undefined") return null;
+  const collector = (window as WindowWithRadar).__WorkOSRadarCollector;
+  if (!collector?.signalsId) return null;
+  return wrapCollector(collector);
+}
 
 /**
  * Load the WorkOS Radar collectors script from the CDN.
@@ -67,9 +95,9 @@ export function loadCollectorsScript(config: {
   scriptPromise = new Promise<RadarScriptAPI>((resolve, reject) => {
     // If the script was already loaded (e.g. via a manual <script> tag),
     // resolve immediately without injecting a duplicate.
-    const existing = (window as WindowWithRadar).WorkOSRadar;
-    if (existing?.getToken) {
-      resolve(existing);
+    const existing = (window as WindowWithRadar).__WorkOSRadarCollector;
+    if (existing?.signalsId) {
+      resolve(wrapCollector(existing));
       return;
     }
 
@@ -79,14 +107,14 @@ export function loadCollectorsScript(config: {
     script.crossOrigin = "anonymous";
 
     script.onload = () => {
-      const api = (window as WindowWithRadar).WorkOSRadar;
-      if (api?.getToken) {
-        resolve(api);
+      const collector = (window as WindowWithRadar).__WorkOSRadarCollector;
+      if (collector?.signalsId) {
+        resolve(wrapCollector(collector));
       } else {
         scriptPromise = null;
         reject(
           new Error(
-            "WorkOSRadar global not found after loading collectors script",
+            "__WorkOSRadarCollector global not found after loading collectors script",
           ),
         );
       }
