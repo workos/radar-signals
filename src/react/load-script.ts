@@ -6,7 +6,7 @@
  *
  * 1. Sets `window.__WorkOSRadarConfig` so the script knows the clientId
  * 2. Injects the `<script>` tag (once)
- * 3. Resolves with the `window.WorkOSRadar` API for token retrieval
+ * 3. Resolves with a `RadarScriptAPI` wrapper around `window.__WorkOSRadarCollector`
  */
 
 const COLLECTORS_SCRIPT_URL = "https://js.workos.com/radar/v1/collectors.js";
@@ -38,9 +38,13 @@ type WindowWithRadar = Window &
 let scriptPromise: Promise<RadarScriptAPI> | null = null;
 
 function wrapCollector(collector: RadarCollectorAPI): RadarScriptAPI {
+  let collectPromise: Promise<unknown> | null = null;
   return {
     getToken: async () => {
-      await collector.collectSignals();
+      if (!collectPromise) {
+        collectPromise = collector.collectSignals();
+      }
+      await collectPromise;
       return collector.signalsId;
     },
     getTokenSync: () => collector.signalsId,
@@ -64,7 +68,7 @@ export function getCollectorFromWindow(): RadarScriptAPI | null {
  * Sets `window.__WorkOSRadarConfig` with the provided `clientId` so the
  * script can read it on load, then injects the `<script>` tag. The script
  * self-initializes — it collects signals and posts them to the API. The
- * returned promise resolves with the token-retrieval API from `window.WorkOSRadar`.
+ * returned promise resolves with a `RadarScriptAPI` wrapper around `window.__WorkOSRadarCollector`.
  *
  * The script is loaded once; subsequent calls return the cached promise
  * (but always update `window.__WorkOSRadarConfig`).
