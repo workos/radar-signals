@@ -37,9 +37,17 @@ type WindowWithRadar = Window &
 
 let scriptPromise: Promise<RadarScriptAPI> | null = null;
 
+/** Cached wrapper so all callers share one `collectPromise`. */
+let cachedWrapper: RadarScriptAPI | null = null;
+let cachedCollector: RadarCollectorAPI | null = null;
+
 function wrapCollector(collector: RadarCollectorAPI): RadarScriptAPI {
+  // Return the cached wrapper if it wraps the same collector instance.
+  if (cachedWrapper && cachedCollector === collector) return cachedWrapper;
+
   let collectPromise: Promise<unknown> | null = null;
-  return {
+  cachedCollector = collector;
+  cachedWrapper = {
     getToken: async () => {
       if (!collectPromise) {
         collectPromise = collector.collectSignals();
@@ -49,6 +57,7 @@ function wrapCollector(collector: RadarCollectorAPI): RadarScriptAPI {
     },
     getTokenSync: () => collector.signalsId,
   };
+  return cachedWrapper;
 }
 
 /**
