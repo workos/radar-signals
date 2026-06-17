@@ -57,7 +57,7 @@ const token = await radar.getToken();
 ```html
 <script src="https://unpkg.com/@workos/radar-signals/dist/workos-radar-signals.global.js"></script>
 <script>
-  var radar = WorkOSRadar.WorkOSRadar.init({ clientId: 'client_...' });
+  var radar = WorkOSRadar.init({ clientId: 'client_...' });
   radar.getToken().then(function (token) {
     // pass token with your auth request
   });
