@@ -7,7 +7,11 @@ import {
   useMemo,
 } from "react";
 import type { RadarInitOptions } from "../types";
-import { loadCollectorsScript, type RadarScriptAPI } from "./load-script";
+import {
+  loadCollectorsScript,
+  getCollectorFromWindow,
+  type RadarScriptAPI,
+} from "./load-script";
 
 interface RadarContextValue {
   getToken: () => Promise<string>;
@@ -56,12 +60,16 @@ export function RadarSignalsProvider({
 
   const getToken = useCallback(async () => {
     await initRef.current;
-    if (!radarRef.current) return "";
-    return radarRef.current.getToken();
+    const api = radarRef.current ?? getCollectorFromWindow();
+    if (!api) return "";
+    return api.getToken();
   }, []);
 
   const getTokenSync = useCallback(
-    () => radarRef.current?.getTokenSync() ?? "",
+    () =>
+      radarRef.current?.getTokenSync() ??
+      getCollectorFromWindow()?.getTokenSync() ??
+      "",
     [],
   );
 
