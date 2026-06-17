@@ -10,36 +10,19 @@
  */
 
 import { ulid } from "ulidx";
-import type { RadarInitOptions, Signals } from "./types";
-import { beaconSignals } from "./api/client";
+import type { RadarInitOptions } from "./types";
 
-export type {
-  RadarInitOptions,
-  Signals,
-  SignalsWorker,
-  Screen,
-  MinimalSurface,
-  MediaPreferences,
-} from "./types";
-
-/** Current state of the Radar instance. */
-type RadarState =
-  | { phase: "collecting" }
-  | { phase: "sending"; signals: Signals }
-  | { phase: "ready"; signals: Signals }
-  | { phase: "error"; signals: Signals | null };
+export type { RadarInitOptions } from "./types";
 
 export class WorkOSRadar {
-  private readonly options: Required<Pick<RadarInitOptions, "clientId">> &
-    Pick<RadarInitOptions, "apiUrl">;
+  private readonly options: RadarInitOptions;
   private signalsId: string;
-  private state: RadarState = { phase: "collecting" };
   private completionPromise: Promise<void>;
   private resolveCompletion!: () => void;
   private destroyed = false;
 
   private constructor(options: RadarInitOptions) {
-    this.options = { clientId: options.clientId, apiUrl: options.apiUrl };
+    this.options = options;
     this.signalsId = ulid();
 
     this.completionPromise = new Promise<void>((resolve) => {
@@ -70,22 +53,8 @@ export class WorkOSRadar {
   /**
    * Get the correlation token synchronously.
    * For redirect/OAuth flows where you're about to navigate away.
-   * If signals haven't been sent yet, flushes via sendBeacon.
    */
   getTokenSync(): string {
-    const { state } = this;
-    // Only beacon if signals are collected but not yet sent
-    // (e.g., navigation interrupts the in-flight POST).
-    // Don't beacon in "ready" state — POST already succeeded.
-    if (state.phase === "sending" || (state.phase === "error" && state.signals)) {
-      beaconSignals({
-        id: this.signalsId,
-        signals: state.signals!,
-        clientId: this.options.clientId,
-        apiUrl: this.options.apiUrl,
-      });
-    }
-    // In all cases return the token — fail-open
     return this.signalsId;
   }
 
@@ -94,10 +63,8 @@ export class WorkOSRadar {
    * Use for subsequent auth attempts on the same page.
    */
   async refresh(): Promise<string> {
-    // Resolve any pending waiters from the previous cycle so they don't hang.
     this.resolveCompletion();
     this.signalsId = ulid();
-    this.state = { phase: "collecting" };
     this.completionPromise = new Promise<void>((resolve) => {
       this.resolveCompletion = resolve;
     });
@@ -111,7 +78,6 @@ export class WorkOSRadar {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
-    // Resolve any pending waiters
     this.resolveCompletion();
   }
 
