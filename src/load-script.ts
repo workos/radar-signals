@@ -1,13 +1,15 @@
 /**
  * Dynamic loader for the WorkOS Radar collectors script.
  *
- * The React SDK is a thin wrapper — the CDN script handles signal
- * collection and API submission on its own. This module:
+ * The CDN script handles signal collection and API submission on its own.
+ * This module:
  *
  * 1. Sets `window.__WorkOSRadarConfig` so the script knows the clientId
  * 2. Injects the `<script>` tag (once)
  * 3. Resolves with a `RadarScriptAPI` wrapper around `window.__WorkOSRadarCollector`
  */
+
+import type { RadarInitOptions } from "./types";
 
 const COLLECTORS_SCRIPT_URL = "https://js.workos.com/radar/v1/collectors.js";
 
@@ -15,7 +17,6 @@ const COLLECTORS_SCRIPT_URL = "https://js.workos.com/radar/v1/collectors.js";
 interface RadarCollectorAPI {
   collectSignals(): Promise<unknown>;
   signalsId: string;
-  version: string;
 }
 
 /** Stable API surface returned to consumers of this module. */
@@ -24,15 +25,10 @@ export interface RadarScriptAPI {
   getTokenSync(): string;
 }
 
-interface WorkOSRadarConfig {
-  clientId: string;
-  apiUrl?: string;
-}
-
 type WindowWithRadar = Window &
   typeof globalThis & {
     __WorkOSRadarCollector?: RadarCollectorAPI;
-    __WorkOSRadarConfig?: WorkOSRadarConfig;
+    __WorkOSRadarConfig?: RadarInitOptions;
   };
 
 let scriptPromise: Promise<RadarScriptAPI> | null = null;
@@ -82,17 +78,11 @@ export function getCollectorFromWindow(): RadarScriptAPI | null {
  * The script is loaded once; subsequent calls return the cached promise
  * (but always update `window.__WorkOSRadarConfig`).
  */
-export function loadCollectorsScript(config: {
-  clientId: string;
-  apiUrl?: string;
-}): Promise<RadarScriptAPI> {
-  // Always update config so the script sees the latest values.
+export function loadCollectorsScript(
+  config: RadarInitOptions,
+): Promise<RadarScriptAPI> {
   if (typeof window !== "undefined") {
-    const radarConfig: WorkOSRadarConfig = { clientId: config.clientId };
-    if (config.apiUrl) {
-      radarConfig.apiUrl = config.apiUrl;
-    }
-    (window as WindowWithRadar).__WorkOSRadarConfig = radarConfig;
+    (window as WindowWithRadar).__WorkOSRadarConfig = config;
   }
 
   if (scriptPromise) return scriptPromise;

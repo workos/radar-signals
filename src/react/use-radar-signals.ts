@@ -4,7 +4,7 @@ import {
   loadCollectorsScript,
   getCollectorFromWindow,
   type RadarScriptAPI,
-} from "./load-script";
+} from "../load-script";
 
 /**
  * Standalone hook (no context needed) for signal collection.
