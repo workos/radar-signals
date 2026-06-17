@@ -44,15 +44,6 @@ describe("WorkOSRadar", () => {
     radar.destroy();
   });
 
-  it("refresh() returns a new token", async () => {
-    const radar = WorkOSRadar.init({ clientId: "client_test_123" });
-    const token1 = await radar.getToken();
-    const token2 = await radar.refresh();
-    expect(token2).not.toBe(token1);
-    expect(token2.length).toBe(26);
-    radar.destroy();
-  });
-
   it("destroy() is idempotent", () => {
     const radar = WorkOSRadar.init({ clientId: "client_test_123" });
     radar.destroy();

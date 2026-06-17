@@ -59,20 +59,6 @@ export class WorkOSRadar {
   }
 
   /**
-   * Re-collect signals and get a new token.
-   * Use for subsequent auth attempts on the same page.
-   */
-  async refresh(): Promise<string> {
-    this.resolveCompletion();
-    this.signalsId = ulid();
-    this.completionPromise = new Promise<void>((resolve) => {
-      this.resolveCompletion = resolve;
-    });
-    await this.run();
-    return this.signalsId;
-  }
-
-  /**
    * Cleanup: stops pending work.
    */
   destroy(): void {
