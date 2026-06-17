@@ -9,32 +9,32 @@
  * from a WorkOS CDN at runtime (not bundled here).
  */
 
-import { ulid } from "ulidx";
 import type { RadarInitOptions } from "./types";
+import {
+  loadCollectorsScript,
+  getCollectorFromWindow,
+  type RadarScriptAPI,
+} from "./react/load-script";
 
 export type { RadarInitOptions } from "./types";
 
 export class WorkOSRadar {
-  private readonly options: RadarInitOptions;
-  private signalsId: string;
-  private completionPromise: Promise<void>;
-  private resolveCompletion!: () => void;
-  private destroyed = false;
+  private scriptAPI: RadarScriptAPI | null = null;
+  private initPromise: Promise<void>;
 
   private constructor(options: RadarInitOptions) {
-    this.options = options;
-    this.signalsId = ulid();
-
-    this.completionPromise = new Promise<void>((resolve) => {
-      this.resolveCompletion = resolve;
-    });
-
-    this.run();
+    this.initPromise = loadCollectorsScript(options)
+      .then((api) => {
+        this.scriptAPI = api;
+      })
+      .catch(() => {
+        // Fail-open: if the CDN script can't load, getToken returns ""
+      });
   }
 
   /**
    * Initialize Radar signal collection.
-   * Immediately starts collecting signals and sending them to WorkOS.
+   * Loads the CDN collectors script and begins collecting signals.
    */
   static init(options: RadarInitOptions): WorkOSRadar {
     return new WorkOSRadar(options);
@@ -42,12 +42,13 @@ export class WorkOSRadar {
 
   /**
    * Get the correlation token to pass with an auth API call.
-   * If collection is still in-flight, awaits completion.
-   * Fail-open: returns a token even if the API POST failed.
+   * If the CDN script is still loading, awaits completion.
+   * Fail-open: returns "" if the script failed to load.
    */
   async getToken(): Promise<string> {
-    await this.completionPromise;
-    return this.signalsId;
+    await this.initPromise;
+    if (!this.scriptAPI) return "";
+    return this.scriptAPI.getToken();
   }
 
   /**
@@ -55,23 +56,10 @@ export class WorkOSRadar {
    * For redirect/OAuth flows where you're about to navigate away.
    */
   getTokenSync(): string {
-    return this.signalsId;
-  }
-
-  /**
-   * Cleanup: stops pending work.
-   */
-  destroy(): void {
-    if (this.destroyed) return;
-    this.destroyed = true;
-    this.resolveCompletion();
-  }
-
-  private async run(): Promise<void> {
-    // Signal collection is handled by the CDN-hosted collectors script
-    // (loaded via the React SDK's load-script module). The vanilla SDK
-    // resolves immediately so callers aren't blocked.
-    const resolve = this.resolveCompletion;
-    resolve();
+    return (
+      this.scriptAPI?.getTokenSync() ??
+      getCollectorFromWindow()?.getTokenSync() ??
+      ""
+    );
   }
 }
