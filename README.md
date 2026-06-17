@@ -13,7 +13,10 @@ npm install @workos/radar-signals
 ### ES Modules / CommonJS
 
 ```ts
-import { collectSignals } from "@workos/radar-signals";
+import { WorkOSRadar } from "@workos/radar-signals";
+
+const radar = WorkOSRadar.init({ clientId: "client_..." });
+const token = await radar.getToken();
 ```
 
 ### React

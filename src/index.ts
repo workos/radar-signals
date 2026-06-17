@@ -20,7 +20,6 @@ export type {
   Screen,
   MinimalSurface,
   MediaPreferences,
-  PuppeteerDetection,
 } from "./types";
 
 /** Current state of the Radar instance. */
@@ -117,9 +116,9 @@ export class WorkOSRadar {
   }
 
   private async run(): Promise<void> {
-    // TODO: Load CDN collection script and collect signals here.
-    // Signal collection logic has been extracted to a separate private package
-    // that will be loaded from a WorkOS CDN at runtime via a script loader.
+    // Signal collection is handled by the CDN-hosted collectors script
+    // (loaded via the React SDK's load-script module). The vanilla SDK
+    // resolves immediately so callers aren't blocked.
     const resolve = this.resolveCompletion;
     resolve();
   }
