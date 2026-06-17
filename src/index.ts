@@ -14,7 +14,7 @@ import {
   loadCollectorsScript,
   getCollectorFromWindow,
   type RadarScriptAPI,
-} from "./react/load-script";
+} from "./load-script";
 
 export type { RadarInitOptions } from "./types";
 

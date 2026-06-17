@@ -23,6 +23,17 @@ const token = await radar.getToken();
 
 ```tsx
 import { useRadarSignals } from "@workos/radar-signals/react";
+
+function LoginForm() {
+  const { getToken } = useRadarSignals({ clientId: "client_..." });
+
+  const handleSubmit = async () => {
+    const token = await getToken();
+    // Pass token with your auth API call
+  };
+
+  return <button onClick={handleSubmit}>Log in</button>;
+}
 ```
 
 ### Script tag (IIFE)
@@ -30,7 +41,10 @@ import { useRadarSignals } from "@workos/radar-signals/react";
 ```html
 <script src="https://unpkg.com/@workos/radar-signals/dist/workos-radar-signals.global.js"></script>
 <script>
-  // Available as window.WorkOSRadar
+  const radar = WorkOSRadar.WorkOSRadar.init({ clientId: "client_..." });
+  radar.getToken().then((token) => {
+    // Pass token with your auth API call
+  });
 </script>
 ```
 

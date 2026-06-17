@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("../react/load-script", () => ({
+vi.mock("../load-script", () => ({
   loadCollectorsScript: vi.fn().mockResolvedValue({
     getToken: vi.fn().mockResolvedValue("01ARYZ6S41TSV4RRFFQ69G5FAV"),
     getTokenSync: vi.fn().mockReturnValue("01ARYZ6S41TSV4RRFFQ69G5FAV"),
@@ -9,7 +9,7 @@ vi.mock("../react/load-script", () => ({
 }));
 
 import { WorkOSRadar } from "../index";
-import { loadCollectorsScript } from "../react/load-script";
+import { loadCollectorsScript } from "../load-script";
 
 beforeEach(() => {
   vi.clearAllMocks();

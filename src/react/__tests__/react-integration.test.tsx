@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import React from "react";
 
-vi.mock("../load-script", () => {
+vi.mock("../../load-script", () => {
   const token = "01ARYZ6S41TSV4RRFFQ69G5FAV";
 
   return {
@@ -13,7 +13,7 @@ vi.mock("../load-script", () => {
   };
 });
 
-import { loadCollectorsScript } from "../load-script";
+import { loadCollectorsScript } from "../../load-script";
 import { RadarSignalsProvider, useRadarToken } from "../radar-signals-provider";
 import { useRadarSignals } from "../use-radar-signals";
 

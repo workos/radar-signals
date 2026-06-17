@@ -11,7 +11,7 @@ import {
   loadCollectorsScript,
   getCollectorFromWindow,
   type RadarScriptAPI,
-} from "./load-script";
+} from "../load-script";
 
 interface RadarContextValue {
   getToken: () => Promise<string>;
