@@ -7,9 +7,9 @@ vi.mock("../../load-script", () => {
 
   return {
     loadCollectorsScript: vi.fn().mockResolvedValue({
-      getToken: vi.fn().mockResolvedValue(token),
-      getTokenSync: vi.fn().mockReturnValue(token),
+      getToken: vi.fn().mockReturnValue(token),
     }),
+    getCollectorFromWindow: vi.fn().mockReturnValue(null),
   };
 });
 
@@ -22,7 +22,7 @@ beforeEach(() => {
 });
 
 describe("RadarSignalsProvider + useRadarToken", () => {
-  it("provides getToken and getTokenSync functions", () => {
+  it("provides getToken and tokenReady", () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <RadarSignalsProvider clientId="client_test_123">
         {children}
@@ -32,7 +32,7 @@ describe("RadarSignalsProvider + useRadarToken", () => {
     const { result } = renderHook(() => useRadarToken(), { wrapper });
 
     expect(result.current.getToken).toBeTypeOf("function");
-    expect(result.current.getTokenSync).toBeTypeOf("function");
+    expect(result.current.tokenReady).toBeTypeOf("boolean");
   });
 
   it("getToken() returns a token string", async () => {
@@ -51,6 +51,20 @@ describe("RadarSignalsProvider + useRadarToken", () => {
 
     expect(token).toBeTypeOf("string");
     expect(token!.length).toBe(26);
+  });
+
+  it("tokenReady becomes true after init", async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <RadarSignalsProvider clientId="client_test_123">
+        {children}
+      </RadarSignalsProvider>
+    );
+
+    const { result } = renderHook(() => useRadarToken(), { wrapper });
+
+    await act(async () => {});
+
+    expect(result.current.tokenReady).toBe(true);
   });
 
   it("passes clientId to loadCollectorsScript", async () => {
@@ -77,13 +91,13 @@ describe("RadarSignalsProvider + useRadarToken", () => {
 });
 
 describe("useRadarSignals (standalone hook)", () => {
-  it("returns getToken and getTokenSync functions", () => {
+  it("returns getToken and tokenReady", () => {
     const { result } = renderHook(() =>
       useRadarSignals({ clientId: "client_test_123" }),
     );
 
     expect(result.current.getToken).toBeTypeOf("function");
-    expect(result.current.getTokenSync).toBeTypeOf("function");
+    expect(result.current.tokenReady).toBeTypeOf("boolean");
   });
 
   it("getToken() returns a token string", async () => {
@@ -112,7 +126,7 @@ describe("useRadarSignals (standalone hook)", () => {
     });
   });
 
-  it("maintains stable function references across re-renders", () => {
+  it("maintains stable getToken reference across re-renders", () => {
     const { result, rerender } = renderHook(() =>
       useRadarSignals({ clientId: "client_test_123" }),
     );
@@ -122,6 +136,5 @@ describe("useRadarSignals (standalone hook)", () => {
     const second = result.current;
 
     expect(first.getToken).toBe(second.getToken);
-    expect(first.getTokenSync).toBe(second.getTokenSync);
   });
 });

@@ -6,12 +6,15 @@
  *
  * 1. Sets `window.__WorkOSRadarConfig` so the script knows the clientId
  * 2. Injects the `<script>` tag (once)
- * 3. Resolves with a `RadarScriptAPI` wrapper around `window.__WorkOSRadarCollector`
+ * 3. Resolves with a `RadarScriptAPI` wrapper once `signalsId` is populated
  */
 
 import type { RadarInitOptions } from "./types";
 
 const COLLECTORS_SCRIPT_URL = "https://js.workos.com/radar/v1/collectors.js";
+
+/** Maximum time (ms) to wait for the collector to populate signalsId. */
+const SIGNALS_TIMEOUT_MS = 10_000;
 
 /** API surface exposed by the collectors script on `window.__WorkOSRadarCollector`. */
 interface RadarCollectorAPI {
@@ -21,8 +24,7 @@ interface RadarCollectorAPI {
 
 /** Stable API surface returned to consumers of this module. */
 export interface RadarScriptAPI {
-  getToken(): Promise<string>;
-  getTokenSync(): string;
+  getToken(): string;
 }
 
 type WindowWithRadar = Window &
@@ -33,27 +35,10 @@ type WindowWithRadar = Window &
 
 let scriptPromise: Promise<RadarScriptAPI> | null = null;
 
-/** Cached wrapper so all callers share one `collectPromise`. */
-let cachedWrapper: RadarScriptAPI | null = null;
-let cachedCollector: RadarCollectorAPI | null = null;
-
 function wrapCollector(collector: RadarCollectorAPI): RadarScriptAPI {
-  // Return the cached wrapper if it wraps the same collector instance.
-  if (cachedWrapper && cachedCollector === collector) return cachedWrapper;
-
-  let collectPromise: Promise<unknown> | null = null;
-  cachedCollector = collector;
-  cachedWrapper = {
-    getToken: async () => {
-      if (!collectPromise) {
-        collectPromise = collector.collectSignals();
-      }
-      await collectPromise;
-      return collector.signalsId;
-    },
-    getTokenSync: () => collector.signalsId,
+  return {
+    getToken: () => collector.signalsId,
   };
-  return cachedWrapper;
 }
 
 /**
@@ -73,7 +58,8 @@ export function getCollectorFromWindow(): RadarScriptAPI | null {
  * Sets `window.__WorkOSRadarConfig` with the provided `clientId` so the
  * script can read it on load, then injects the `<script>` tag. The script
  * self-initializes — it collects signals and posts them to the API. The
- * returned promise resolves with a `RadarScriptAPI` wrapper around `window.__WorkOSRadarCollector`.
+ * returned promise resolves with a `RadarScriptAPI` wrapper once `signalsId`
+ * has been populated by the collector.
  *
  * The script is loaded once; subsequent calls return the cached promise
  * (but always update `window.__WorkOSRadarConfig`).
@@ -109,21 +95,57 @@ export function loadCollectorsScript(
     script.async = true;
     script.crossOrigin = "anonymous";
 
+    // Fail-open timeout: if signalsId is never set, resolve with empty token.
+    const timeout = setTimeout(() => {
+      resolve({ getToken: () => "" });
+    }, SIGNALS_TIMEOUT_MS);
+
     script.onload = () => {
       const collector = (window as WindowWithRadar).__WorkOSRadarCollector;
-      if (collector?.signalsId) {
-        resolve(wrapCollector(collector));
-      } else {
+      if (!collector) {
+        clearTimeout(timeout);
         scriptPromise = null;
         reject(
           new Error(
             "__WorkOSRadarCollector global not found after loading collectors script",
           ),
         );
+        return;
       }
+
+      // Fast path: signalsId is already populated (e.g. cached response).
+      if (collector.signalsId) {
+        clearTimeout(timeout);
+        resolve(wrapCollector(collector));
+        return;
+      }
+
+      // The collector sets signalsId asynchronously after collect+submit.
+      // Intercept the assignment so we resolve exactly when it's ready.
+      let current = collector.signalsId;
+      Object.defineProperty(collector, "signalsId", {
+        get: () => current,
+        set(value: string) {
+          current = value;
+          if (value) {
+            clearTimeout(timeout);
+            // Restore as a normal data property.
+            Object.defineProperty(collector, "signalsId", {
+              value,
+              writable: true,
+              configurable: true,
+              enumerable: true,
+            });
+            resolve(wrapCollector(collector));
+          }
+        },
+        configurable: true,
+        enumerable: true,
+      });
     };
 
     script.onerror = () => {
+      clearTimeout(timeout);
       scriptPromise = null;
       reject(
         new Error(

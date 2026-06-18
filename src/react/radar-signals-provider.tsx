@@ -5,6 +5,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useState,
 } from "react";
 import type { RadarInitOptions } from "../types";
 import {
@@ -15,7 +16,7 @@ import {
 
 interface RadarContextValue {
   getToken: () => Promise<string>;
-  getTokenSync: () => string;
+  tokenReady: boolean;
 }
 
 const RadarContext = createContext<RadarContextValue | null>(null);
@@ -26,6 +27,7 @@ export function RadarSignalsProvider({
 }: RadarInitOptions & { children: React.ReactNode }) {
   const radarRef = useRef<RadarScriptAPI | null>(null);
   const initRef = useRef<Promise<void> | null>(null);
+  const [tokenReady, setTokenReady] = useState(false);
 
   // Eagerly load the collectors script during render.
   // The script self-initializes — it reads window.__WorkOSRadarConfig,
@@ -34,6 +36,7 @@ export function RadarSignalsProvider({
     initRef.current = loadCollectorsScript(options)
       .then((api) => {
         radarRef.current = api;
+        setTokenReady(api.getToken() !== "");
       })
       .catch(() => {
         // Fail open: if the script can't load, getToken returns ""
@@ -47,6 +50,7 @@ export function RadarSignalsProvider({
       initRef.current = loadCollectorsScript(options)
         .then((api) => {
           radarRef.current = api;
+          setTokenReady(api.getToken() !== "");
         })
         .catch(() => {});
     }
@@ -65,17 +69,9 @@ export function RadarSignalsProvider({
     return api.getToken();
   }, []);
 
-  const getTokenSync = useCallback(
-    () =>
-      radarRef.current?.getTokenSync() ??
-      getCollectorFromWindow()?.getTokenSync() ??
-      "",
-    [],
-  );
-
   const value = useMemo(
-    () => ({ getToken, getTokenSync }),
-    [getToken, getTokenSync],
+    () => ({ getToken, tokenReady }),
+    [getToken, tokenReady],
   );
 
   return (

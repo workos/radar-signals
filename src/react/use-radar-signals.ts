@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import type { RadarInitOptions } from "../types";
 import {
   loadCollectorsScript,
@@ -14,12 +14,14 @@ import {
 export function useRadarSignals(options: RadarInitOptions) {
   const radarRef = useRef<RadarScriptAPI | null>(null);
   const initRef = useRef<Promise<void> | null>(null);
+  const [tokenReady, setTokenReady] = useState(false);
 
   // Eagerly start loading during render.
   if (initRef.current === null) {
     initRef.current = loadCollectorsScript(options)
       .then((api) => {
         radarRef.current = api;
+        setTokenReady(api.getToken() !== "");
       })
       .catch(() => {
         // Fail open: if the script can't load, getToken returns ""
@@ -33,6 +35,7 @@ export function useRadarSignals(options: RadarInitOptions) {
       initRef.current = loadCollectorsScript(options)
         .then((api) => {
           radarRef.current = api;
+          setTokenReady(api.getToken() !== "");
         })
         .catch(() => {});
     }
@@ -51,13 +54,5 @@ export function useRadarSignals(options: RadarInitOptions) {
     return api.getToken();
   }, []);
 
-  const getTokenSync = useCallback(
-    () =>
-      radarRef.current?.getTokenSync() ??
-      getCollectorFromWindow()?.getTokenSync() ??
-      "",
-    [],
-  );
-
-  return { getToken, getTokenSync };
+  return { getToken, tokenReady };
 }
