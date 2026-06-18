@@ -37,6 +37,7 @@ type WindowWithRadar = Window &
   };
 
 let scriptPromise: Promise<RadarScriptAPI> | null = null;
+let cachedConfigKey: string | null = null;
 
 function wrapCollector(collector: RadarCollectorAPI): RadarScriptAPI {
   return {
@@ -74,7 +75,12 @@ export function loadCollectorsScript(
     (window as WindowWithRadar).__WorkOSRadarConfig = config;
   }
 
-  if (scriptPromise) return scriptPromise;
+  const configKey = `${config.clientId}|${config.apiUrl ?? ""}`;
+  if (scriptPromise && cachedConfigKey === configKey) return scriptPromise;
+
+  // Config changed — invalidate the cached promise so a fresh load occurs.
+  scriptPromise = null;
+  cachedConfigKey = configKey;
 
   // SSR guard: reject without caching so subsequent calls can retry
   // once a browser environment is available.

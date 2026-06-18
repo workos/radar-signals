@@ -68,8 +68,16 @@ export function RadarSignalsProvider({
     const api = radarRef.current ?? getCollectorFromWindow();
     if (!api) return "";
     const token = api.getToken();
-    if (token) setTokenReady(true);
-    return token;
+    if (token) {
+      setTokenReady(true);
+      return token;
+    }
+    // Primary API returned empty — try the window fallback in case
+    // the collector finished outside the loader flow.
+    const fallback = getCollectorFromWindow();
+    const fallbackToken = fallback?.getToken() ?? "";
+    if (fallbackToken) setTokenReady(true);
+    return fallbackToken;
   }, []);
 
   const value = useMemo(
