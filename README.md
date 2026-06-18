@@ -127,7 +127,7 @@ For environments without a bundler, load the IIFE build via a `<script>` tag.
 ```html
 <script src="https://unpkg.com/@workos/radar-signals/dist/workos-radar-signals.global.js"></script>
 <script>
-  var radar = WorkOSRadar.WorkOSRadar.init({ clientId: 'client_01ABC...' });
+  var radar = WorkOSRadar.init({ clientId: 'client_01ABC...' });
   radar.getToken().then(function (token) {
     // pass token with your auth request
   });

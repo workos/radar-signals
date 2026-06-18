@@ -20,9 +20,8 @@ export default defineConfig([
   },
   // IIFE build for script tag usage
   {
-    entry: { "workos-radar-signals.global": "src/index.ts" },
+    entry: { "workos-radar-signals.global": "src/global.ts" },
     format: ["iife"],
-    globalName: "WorkOSRadar",
     outExtension() {
       return { js: ".js" };
     },
