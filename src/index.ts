@@ -53,6 +53,10 @@ export class WorkOSRadar {
     await this.initPromise;
     const api = this.scriptAPI ?? getCollectorFromWindow();
     if (!api) return "";
-    return api.getToken();
+    const token = api.getToken();
+    if (token && !this.tokenReady) {
+      this.tokenReady = true;
+    }
+    return token;
   }
 }

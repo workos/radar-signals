@@ -61,13 +61,15 @@ export function RadarSignalsProvider({
       setTokenReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options.clientId]);
+  }, [options.clientId, options.apiUrl]);
 
   const getToken = useCallback(async () => {
     await initRef.current;
     const api = radarRef.current ?? getCollectorFromWindow();
     if (!api) return "";
-    return api.getToken();
+    const token = api.getToken();
+    if (token) setTokenReady(true);
+    return token;
   }, []);
 
   const value = useMemo(

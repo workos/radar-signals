@@ -16,6 +16,9 @@ const COLLECTORS_SCRIPT_URL = "https://js.workos.com/radar/v1/collectors.js";
 /** Maximum time (ms) to wait for the collector to populate signalsId. */
 const SIGNALS_TIMEOUT_MS = 10_000;
 
+/** Polling interval (ms) used as fallback when defineProperty is unavailable. */
+const POLL_INTERVAL_MS = 50;
+
 /** API surface exposed by the collectors script on `window.__WorkOSRadarCollector`. */
 interface RadarCollectorAPI {
   collectSignals(): Promise<unknown>;
@@ -90,15 +93,72 @@ export function loadCollectorsScript(
       return;
     }
 
-    const script = document.createElement("script");
-    script.src = COLLECTORS_SCRIPT_URL;
-    script.async = true;
-    script.crossOrigin = "anonymous";
-
     // Fail-open timeout: if signalsId is never set, resolve with empty token.
     const timeout = setTimeout(() => {
       resolve({ getToken: () => "" });
     }, SIGNALS_TIMEOUT_MS);
+
+    /**
+     * Wait for signalsId to be populated on the collector object.
+     * Prefer a defineProperty setter trap for instant notification;
+     * fall back to polling if the property is non-configurable.
+     */
+    function waitForSignalsId(collector: RadarCollectorAPI): void {
+      // Fast path: already populated.
+      if (collector.signalsId) {
+        clearTimeout(timeout);
+        resolve(wrapCollector(collector));
+        return;
+      }
+
+      // Try installing a setter trap.
+      try {
+        let current = collector.signalsId;
+        Object.defineProperty(collector, "signalsId", {
+          get: () => current,
+          set(value: string) {
+            current = value;
+            if (value) {
+              clearTimeout(timeout);
+              // Restore as a normal data property.
+              Object.defineProperty(collector, "signalsId", {
+                value,
+                writable: true,
+                configurable: true,
+                enumerable: true,
+              });
+              resolve(wrapCollector(collector));
+            }
+          },
+          configurable: true,
+          enumerable: true,
+        });
+      } catch {
+        // defineProperty failed (non-configurable property); fall back to polling.
+        const poll = setInterval(() => {
+          if (collector.signalsId) {
+            clearInterval(poll);
+            clearTimeout(timeout);
+            resolve(wrapCollector(collector));
+          }
+        }, POLL_INTERVAL_MS);
+
+        // Clean up polling on timeout.
+        setTimeout(() => clearInterval(poll), SIGNALS_TIMEOUT_MS);
+      }
+    }
+
+    // If a collector global already exists (e.g. manually loaded or in-flight),
+    // attach to it directly instead of appending a duplicate script tag.
+    if (existing) {
+      waitForSignalsId(existing);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = COLLECTORS_SCRIPT_URL;
+    script.async = true;
+    script.crossOrigin = "anonymous";
 
     script.onload = () => {
       const collector = (window as WindowWithRadar).__WorkOSRadarCollector;
@@ -113,35 +173,7 @@ export function loadCollectorsScript(
         return;
       }
 
-      // Fast path: signalsId is already populated (e.g. cached response).
-      if (collector.signalsId) {
-        clearTimeout(timeout);
-        resolve(wrapCollector(collector));
-        return;
-      }
-
-      // The collector sets signalsId asynchronously after collect+submit.
-      // Intercept the assignment so we resolve exactly when it's ready.
-      let current = collector.signalsId;
-      Object.defineProperty(collector, "signalsId", {
-        get: () => current,
-        set(value: string) {
-          current = value;
-          if (value) {
-            clearTimeout(timeout);
-            // Restore as a normal data property.
-            Object.defineProperty(collector, "signalsId", {
-              value,
-              writable: true,
-              configurable: true,
-              enumerable: true,
-            });
-            resolve(wrapCollector(collector));
-          }
-        },
-        configurable: true,
-        enumerable: true,
-      });
+      waitForSignalsId(collector);
     };
 
     script.onerror = () => {
