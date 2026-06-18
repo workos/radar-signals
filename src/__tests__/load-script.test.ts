@@ -100,6 +100,53 @@ describe("loadCollectorsScript", () => {
     );
   });
 
+  it("re-injects script and clears stale collector on config change", async () => {
+    const oldCollector = {
+      collectSignals: vi.fn(),
+      signalsId: "old-token",
+    };
+
+    const appendChild = vi.fn();
+    const mockScript: Record<string, unknown> = { remove: vi.fn() };
+
+    vi.stubGlobal("document", {
+      createElement: () => mockScript,
+      head: { appendChild },
+    });
+
+    // First load — establish the old collector.
+    (window as unknown as Record<string, unknown>).__WorkOSRadarCollector =
+      oldCollector;
+
+    const { loadCollectorsScript: load } = await import("../load-script");
+    const api1 = await load({ clientId: "client_A" });
+    expect(api1.getToken()).toBe("old-token");
+
+    // Second load with a different clientId — should NOT return the old token.
+    const newCollector = {
+      collectSignals: vi.fn(),
+      signalsId: "new-token",
+    };
+
+    const promise2 = load({ clientId: "client_B" });
+
+    // The old collector global should have been cleared.
+    expect(
+      (window as unknown as Record<string, unknown>).__WorkOSRadarCollector,
+    ).toBeUndefined();
+
+    // A new script tag should have been appended.
+    expect(appendChild).toHaveBeenCalledTimes(1);
+
+    // Simulate the new script loading and setting a fresh collector.
+    (window as unknown as Record<string, unknown>).__WorkOSRadarCollector =
+      newCollector;
+    (mockScript.onload as () => void)();
+
+    const api2 = await promise2;
+    expect(api2.getToken()).toBe("new-token");
+  });
+
   it("rejects on script error", async () => {
     const mockScript: Record<string, unknown> = {};
 
