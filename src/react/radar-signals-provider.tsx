@@ -58,6 +58,7 @@ export function RadarSignalsProvider({
     return () => {
       radarRef.current = null;
       initRef.current = null;
+      setTokenReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.clientId]);
