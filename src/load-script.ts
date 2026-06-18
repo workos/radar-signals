@@ -181,6 +181,9 @@ export function loadCollectorsScript(
     script.crossOrigin = "anonymous";
 
     script.onload = () => {
+      // Guard: if config changed while loading, this script is stale.
+      if (script !== injectedScript) return;
+
       const collector = (window as WindowWithRadar).__WorkOSRadarCollector;
       if (!collector) {
         clearTimeout(timeout);
@@ -197,6 +200,9 @@ export function loadCollectorsScript(
     };
 
     script.onerror = () => {
+      // Guard: if config changed while loading, this script is stale.
+      if (script !== injectedScript) return;
+
       clearTimeout(timeout);
       scriptPromise = null;
       reject(

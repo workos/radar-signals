@@ -29,11 +29,14 @@ export function useRadarSignals(options: RadarInitOptions) {
   }
 
   useEffect(() => {
+    let cancelled = false;
+
     // Re-initialize after cleanup (handles StrictMode remount and
     // clientId changes — both null the refs before this runs).
     if (initRef.current === null) {
       initRef.current = loadCollectorsScript(options)
         .then((api) => {
+          if (cancelled) return;
           radarRef.current = api;
           setTokenReady(api.getToken() !== "");
         })
@@ -41,6 +44,7 @@ export function useRadarSignals(options: RadarInitOptions) {
     }
 
     return () => {
+      cancelled = true;
       radarRef.current = null;
       initRef.current = null;
       setTokenReady(false);
