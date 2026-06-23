@@ -71,7 +71,7 @@ Initializes Radar and provides the token to descendant components via context.
 
 | Prop | Type | Required | Description |
 |------|------|----------|-------------|
-| `clientId` | `string` | Yes | Your WorkOS client ID (publishable, safe for browser use) |
+| `clientId` | `string` | Yes | Your WorkOS client ID (publishable, safe for browser use). Find this in the [WorkOS Dashboard](https://dashboard.workos.com) under **Applications**. |
 | `apiUrl` | `string` | No | Override the API base URL (defaults to `https://api.workos.com`) |
 
 ### `useRadarToken()`
@@ -114,7 +114,7 @@ Creates a new Radar instance and loads the CDN collectors script.
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
-| `clientId` | `string` | Yes | Your WorkOS client ID (publishable, safe for browser use) |
+| `clientId` | `string` | Yes | Your WorkOS client ID (publishable, safe for browser use). Find this in the [WorkOS Dashboard](https://dashboard.workos.com) under **Applications**. |
 | `apiUrl` | `string` | No | Override the API base URL (defaults to `https://api.workos.com`) |
 
 ### `radar.getToken()`
