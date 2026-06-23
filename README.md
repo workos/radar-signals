@@ -12,7 +12,7 @@ npm install @workos/radar-signals
 
 ## Quick start
 
-Wrap your app (or auth subtree) in `RadarSignalsProvider`. Signal collection starts automatically on mount.
+Wrap your app (or auth subtree) in `RadarSignalsProvider`. Signal collection starts automatically on mount. You can find your client ID in the [WorkOS Dashboard](https://dashboard.workos.com) under **Applications**.
 
 ```tsx
 import { RadarSignalsProvider } from '@workos/radar-signals/react';
