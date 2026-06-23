@@ -22,10 +22,14 @@ export class WorkOSRadar {
   private scriptAPI: RadarScriptAPI | null = null;
   private initPromise: Promise<void>;
 
+  /** Whether a real token is available from the collector. */
+  tokenReady: boolean = false;
+
   private constructor(options: RadarInitOptions) {
     this.initPromise = loadCollectorsScript(options)
       .then((api) => {
         this.scriptAPI = api;
+        this.tokenReady = api.getToken() !== "";
       })
       .catch(() => {
         // Fail-open: if the CDN script can't load, getToken returns ""
@@ -42,24 +46,28 @@ export class WorkOSRadar {
 
   /**
    * Get the correlation token to pass with an auth API call.
-   * If the CDN script is still loading, awaits completion.
-   * Fail-open: returns "" if the script failed to load.
+   * If signal collection is still in-flight, awaits completion.
+   * Fail-open: returns "" if the script failed to load or timed out.
    */
   async getToken(): Promise<string> {
     await this.initPromise;
-    if (!this.scriptAPI) return "";
-    return this.scriptAPI.getToken();
-  }
-
-  /**
-   * Get the correlation token synchronously.
-   * For redirect/OAuth flows where you're about to navigate away.
-   */
-  getTokenSync(): string {
-    return (
-      this.scriptAPI?.getTokenSync() ??
-      getCollectorFromWindow()?.getTokenSync() ??
-      ""
-    );
+    const api = this.scriptAPI ?? getCollectorFromWindow();
+    if (!api) return "";
+    const token = api.getToken();
+    if (token) {
+      if (!this.tokenReady) this.tokenReady = true;
+      return token;
+    }
+    // Fallback: if primary API returned empty (e.g. timeout wrapper),
+    // check the window global in case the collector finished late.
+    const fallback = getCollectorFromWindow();
+    if (fallback) {
+      const fallbackToken = fallback.getToken();
+      if (fallbackToken) {
+        if (!this.tokenReady) this.tokenReady = true;
+        return fallbackToken;
+      }
+    }
+    return "";
   }
 }

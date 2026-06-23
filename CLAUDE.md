@@ -24,7 +24,7 @@ function App() {
 }
 
 function LoginForm() {
-  const { getToken } = useRadarToken();
+  const { getToken, tokenReady } = useRadarToken();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -36,7 +36,12 @@ function LoginForm() {
     });
   };
 
-  return <form onSubmit={handleSubmit}>{/* ... */}</form>;
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* ... */}
+      <button type="submit" disabled={!tokenReady}>Log in</button>
+    </form>
+  );
 }
 ```
 
@@ -66,17 +71,17 @@ const token = await radar.getToken();
 
 ## Public API
 
-| Method | Description |
+| Method / Property | Description |
 |--------|-------------|
 | `WorkOSRadar.init(options)` | Creates a Radar instance and loads the CDN collectors script. Accepts `clientId` (required) and `apiUrl` (optional, defaults to `https://api.workos.com`). |
 | `radar.getToken()` | Returns the correlation token (async). Waits for the CDN script to load and collection to complete. |
-| `radar.getTokenSync()` | Returns the token synchronously. For redirect/OAuth flows where you're about to navigate away. |
+| `radar.tokenReady` | Boolean flag — `true` once a real token is available from the collector. |
 
-React hooks (`useRadarToken`, `useRadarSignals`) return `{ getToken, getTokenSync }`.
+React hooks (`useRadarToken`, `useRadarSignals`) return `{ getToken, tokenReady }`.
 
 ## Key behavior
 
-- **Fail-open**: `getToken()` always resolves with a value (empty string if the CDN script fails to load). Server-side Radar handles missing signals gracefully.
+- **Fail-open**: `getToken()` always resolves with a value (empty string if the CDN script fails to load or times out). Server-side Radar handles missing signals gracefully.
 - **CDN-loaded**: Signal collection logic is loaded from `https://js.workos.com/radar/v1/collectors.js` at runtime — it is not bundled in this package.
 - **Requires React 18+** for React bindings.
 - **No runtime dependencies** — the package has zero production dependencies.

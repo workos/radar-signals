@@ -32,7 +32,7 @@ Then call `getToken()` from any child component when you need the correlation to
 import { useRadarToken } from '@workos/radar-signals/react';
 
 function LoginForm() {
-  const { getToken } = useRadarToken();
+  const { getToken, tokenReady } = useRadarToken();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -43,7 +43,12 @@ function LoginForm() {
     });
   };
 
-  return <form onSubmit={handleSubmit}>{/* ... */}</form>;
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* ... */}
+      <button type="submit" disabled={!tokenReady}>Log in</button>
+    </form>
+  );
 }
 ```
 
@@ -71,20 +76,20 @@ Initializes Radar and provides the token to descendant components via context.
 
 ### `useRadarToken()`
 
-Returns `{ getToken, getTokenSync }` from the nearest `RadarSignalsProvider`.
+Returns `{ getToken, tokenReady }` from the nearest `RadarSignalsProvider`.
 
 - **`getToken()`** — returns the token after collection completes (async)
-- **`getTokenSync()`** — returns the token immediately; for redirect/OAuth flows where you're about to navigate away
+- **`tokenReady`** — `true` once a real token is available; useful for disabling submit buttons until signals are collected
 
 ### `useRadarSignals(options)`
 
-Standalone hook that creates its own Radar instance — no provider needed. Accepts the same options as `RadarSignalsProvider`. Returns `{ getToken, getTokenSync }`.
+Standalone hook that creates its own Radar instance — no provider needed. Accepts the same options as `RadarSignalsProvider`. Returns `{ getToken, tokenReady }`.
 
 ```tsx
 import { useRadarSignals } from '@workos/radar-signals/react';
 
 function LoginForm() {
-  const { getToken, getTokenSync } = useRadarSignals({
+  const { getToken, tokenReady } = useRadarSignals({
     clientId: 'client_01ABC...',
   });
   // ...
@@ -116,9 +121,9 @@ Creates a new Radar instance and loads the CDN collectors script.
 
 Returns the correlation token after signals have been collected and submitted. If the CDN script is still loading, the promise resolves once complete.
 
-### `radar.getTokenSync()`
+### `radar.tokenReady`
 
-Returns the token synchronously. Use this for OAuth or redirect flows where you're about to navigate away. If you need to wait for signal collection to complete, use `getToken()` instead.
+Boolean flag that becomes `true` once a real token is available. Useful for checking whether collection has completed without awaiting.
 
 ## Script tag usage
 

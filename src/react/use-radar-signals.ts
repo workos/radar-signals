@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import type { RadarInitOptions } from "../types";
 import {
   loadCollectorsScript,
@@ -14,50 +14,46 @@ import {
 export function useRadarSignals(options: RadarInitOptions) {
   const radarRef = useRef<RadarScriptAPI | null>(null);
   const initRef = useRef<Promise<void> | null>(null);
+  const [tokenReady, setTokenReady] = useState(false);
 
-  // Eagerly start loading during render.
-  if (initRef.current === null) {
+  useEffect(() => {
+    let cancelled = false;
+
     initRef.current = loadCollectorsScript(options)
       .then((api) => {
+        if (cancelled) return;
         radarRef.current = api;
+        setTokenReady(api.getToken() !== "");
       })
       .catch(() => {
         // Fail open: if the script can't load, getToken returns ""
       });
-  }
-
-  useEffect(() => {
-    // Re-initialize after cleanup (handles StrictMode remount and
-    // clientId changes — both null the refs before this runs).
-    if (initRef.current === null) {
-      initRef.current = loadCollectorsScript(options)
-        .then((api) => {
-          radarRef.current = api;
-        })
-        .catch(() => {});
-    }
 
     return () => {
+      cancelled = true;
       radarRef.current = null;
       initRef.current = null;
+      setTokenReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options.clientId]);
+  }, [options.clientId, options.apiUrl]);
 
   const getToken = useCallback(async () => {
     await initRef.current;
     const api = radarRef.current ?? getCollectorFromWindow();
     if (!api) return "";
-    return api.getToken();
+    const token = api.getToken();
+    if (token) {
+      setTokenReady(true);
+      return token;
+    }
+    // Primary API returned empty — try the window fallback in case
+    // the collector finished outside the loader flow.
+    const fallback = getCollectorFromWindow();
+    const fallbackToken = fallback?.getToken() ?? "";
+    if (fallbackToken) setTokenReady(true);
+    return fallbackToken;
   }, []);
 
-  const getTokenSync = useCallback(
-    () =>
-      radarRef.current?.getTokenSync() ??
-      getCollectorFromWindow()?.getTokenSync() ??
-      "",
-    [],
-  );
-
-  return { getToken, getTokenSync };
+  return { getToken, tokenReady };
 }
