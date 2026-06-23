@@ -74,8 +74,8 @@ describe("loadCollectorsScript", () => {
       collector;
     (mockScript.onload as () => void)();
 
-    // Advance past the timeout (10s).
-    vi.advanceTimersByTime(10_000);
+    // Advance past the timeout (3s).
+    vi.advanceTimersByTime(3_000);
 
     const api = await promise;
     expect(api.getToken()).toBe("");

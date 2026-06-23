@@ -14,7 +14,7 @@ import type { RadarInitOptions } from "./types";
 const COLLECTORS_SCRIPT_URL = "https://js.workos.com/radar/v1/collectors.js";
 
 /** Maximum time (ms) to wait for the collector to populate signalsId. */
-const SIGNALS_TIMEOUT_MS = 10_000;
+const SIGNALS_TIMEOUT_MS = 3_000;
 
 /** Polling interval (ms) used as fallback when defineProperty is unavailable. */
 const POLL_INTERVAL_MS = 50;
