@@ -1,6 +1,6 @@
 {
   "name": "@workos/radar-signals",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Browser signals collector for WorkOS Radar",
   "license": "MIT",
   "repository": {
