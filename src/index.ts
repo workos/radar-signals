@@ -54,9 +54,20 @@ export class WorkOSRadar {
     const api = this.scriptAPI ?? getCollectorFromWindow();
     if (!api) return "";
     const token = api.getToken();
-    if (token && !this.tokenReady) {
-      this.tokenReady = true;
+    if (token) {
+      if (!this.tokenReady) this.tokenReady = true;
+      return token;
     }
-    return token;
+    // Fallback: if primary API returned empty (e.g. timeout wrapper),
+    // check the window global in case the collector finished late.
+    const fallback = getCollectorFromWindow();
+    if (fallback) {
+      const fallbackToken = fallback.getToken();
+      if (fallbackToken) {
+        if (!this.tokenReady) this.tokenReady = true;
+        return fallbackToken;
+      }
+    }
+    return "";
   }
 }
