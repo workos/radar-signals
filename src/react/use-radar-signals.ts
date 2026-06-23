@@ -16,32 +16,18 @@ export function useRadarSignals(options: RadarInitOptions) {
   const initRef = useRef<Promise<void> | null>(null);
   const [tokenReady, setTokenReady] = useState(false);
 
-  // Eagerly start loading during render.
-  if (initRef.current === null) {
+  useEffect(() => {
+    let cancelled = false;
+
     initRef.current = loadCollectorsScript(options)
       .then((api) => {
+        if (cancelled) return;
         radarRef.current = api;
         setTokenReady(api.getToken() !== "");
       })
       .catch(() => {
         // Fail open: if the script can't load, getToken returns ""
       });
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    // Re-initialize after cleanup (handles StrictMode remount and
-    // clientId changes — both null the refs before this runs).
-    if (initRef.current === null) {
-      initRef.current = loadCollectorsScript(options)
-        .then((api) => {
-          if (cancelled) return;
-          radarRef.current = api;
-          setTokenReady(api.getToken() !== "");
-        })
-        .catch(() => {});
-    }
 
     return () => {
       cancelled = true;
