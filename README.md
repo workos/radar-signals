@@ -72,7 +72,7 @@ Initializes Radar and provides the token to descendant components via context.
 | Prop | Type | Required | Description |
 |------|------|----------|-------------|
 | `clientId` | `string` | Yes | Your WorkOS client ID (publishable, safe for browser use). Find this in the [WorkOS Dashboard](https://dashboard.workos.com) under **Applications**. |
-| `apiUrl` | `string` | No | Override the API base URL (defaults to `https://api.workos.com`) |
+| `apiUrl` | `string` | No | Your custom Auth API domain, e.g. `https://auth.example.com`. Signals are posted to this origin, which keeps them first-party for CSP and blockers. Must be `https://`; otherwise signals go to `https://api.workos.com` (the default). |
 
 ### `useRadarToken()`
 
@@ -115,7 +115,7 @@ Creates a new Radar instance and loads the CDN collectors script.
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
 | `clientId` | `string` | Yes | Your WorkOS client ID (publishable, safe for browser use). Find this in the [WorkOS Dashboard](https://dashboard.workos.com) under **Applications**. |
-| `apiUrl` | `string` | No | Override the API base URL (defaults to `https://api.workos.com`) |
+| `apiUrl` | `string` | No | Your custom Auth API domain, e.g. `https://auth.example.com`. Signals are posted to this origin, which keeps them first-party for CSP and blockers. Must be `https://`; otherwise signals go to `https://api.workos.com` (the default). |
 
 ### `radar.getToken()`
 
